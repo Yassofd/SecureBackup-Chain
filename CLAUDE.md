@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 3 — IPFS local
-- **Dernière phase complétée** : Phase 2 — Chaincode minimal
-- **Prochaine action** : déployer un nœud IPFS local avec Kubo et tester l'upload/download
+- **Phase en cours** : Phase 4 — Backend API minimal
+- **Dernière phase complétée** : Phase 3 — IPFS local
+- **Prochaine action** : créer l'API Express avec les endpoints de sauvegarde (upload IPFS + enregistrement Fabric)
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 
