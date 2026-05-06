@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 0 — Préparation de l'environnement
-- **Dernière phase complétée** : aucune
-- **Prochaine action** : installer Docker, Node.js et créer la structure du projet
+- **Phase en cours** : Phase 1 — Réseau Hyperledger Fabric local minimal
+- **Dernière phase complétée** : Phase 0 — Préparation de l'environnement
+- **Prochaine action** : déployer le réseau Fabric local avec un orderer et un peer
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 
