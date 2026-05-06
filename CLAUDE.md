@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 2 — Chaincode minimal
-- **Dernière phase complétée** : Phase 1 — Réseau Hyperledger Fabric local minimal
-- **Prochaine action** : écrire et déployer le chaincode backup-cc sur backupchannel
+- **Phase en cours** : Phase 3 — IPFS local
+- **Dernière phase complétée** : Phase 2 — Chaincode minimal
+- **Prochaine action** : déployer un nœud IPFS local avec Kubo et tester l'upload/download
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

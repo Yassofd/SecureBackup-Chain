@@ -99,6 +99,21 @@ services:
     networks:
       - fabric
 
+  backup-cc:
+    image: node:18-alpine
+    environment:
+      - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
+      - CHAINCODE_ID=${CHAINCODE_ID:-backup-cc_1.0:placeholder}
+    working_dir: /usr/local/src
+    command: sh /usr/local/src/start.sh
+    volumes:
+      - ../chaincode:/usr/local/src
+    container_name: backup-cc
+    networks:
+      - fabric
+    depends_on:
+      - peer0.org1.example.com
+
 volumes:
   orderer-data:
   peer0-data:
