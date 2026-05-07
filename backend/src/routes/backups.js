@@ -10,6 +10,7 @@ const { sha256, encryptAES, decryptAES } = require('../services/crypto');
 const { encrypt: encryptCred, decrypt: decryptCred } = require('../services/credentials');
 const sshService = require('../services/ssh');
 const db = require('../services/db');
+const { notify } = require('../services/notifications');
 const authMiddleware = require('../middleware/auth');
 const requireRole = require('../middleware/role');
 const env = require('../../config/env');
@@ -36,6 +37,8 @@ router.post('/', requireRole('admin', 'responsable'), upload.single('file'), asy
     );
 
     await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
+    notify(req.user.sub, 'backup_success', 'Sauvegarde créée',
+      `Fichier "${originalname}" (${(size / 1024).toFixed(1)} Ko) sauvegardé avec succès.`);
 
     res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
   } catch (err) { next(err); }
@@ -83,6 +86,10 @@ router.post('/:id/verify', upload.single('file'), async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const fileHash = sha256(req.file.buffer);
     const result = await fabric.submitTransaction('verifyIntegrity', req.params.id, fileHash);
+    if (!result.valid) {
+      notify(req.user.sub, 'integrity_failure', 'Intégrité compromise',
+        `La vérification de la sauvegarde ${req.params.id} a échoué — le fichier semble altéré.`);
+    }
     res.json(result);
   } catch (err) {
     if (err.message?.includes('introuvable')) return res.status(404).json({ error: err.message });
@@ -171,6 +178,8 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
     );
 
     await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
+    notify(req.user.sub, 'backup_success', 'Sauvegarde distante créée',
+      `Fichier "${fileName}" depuis ${server.username}@${server.host}:${remotePath} sauvegardé avec succès.`);
 
     res.status(201).json({
       backupId: entry.backupId,

@@ -21,6 +21,7 @@ model User {
   backupOwnerships BackupOwnership[]
   sshServers       SshServer[]
   scheduledBackups ScheduledBackup[]
+  notifications    Notification[]
 
   @@map("users")
 }
@@ -96,6 +97,19 @@ model ScheduledBackupRun {
   errorMessage String?   @map("error_message")
 
   @@map("scheduled_backup_runs")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
 }
 
 enum Role {

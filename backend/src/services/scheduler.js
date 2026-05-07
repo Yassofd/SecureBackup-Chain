@@ -10,6 +10,7 @@ const sshService = require('./ssh');
 const { sha256, encryptAES } = require('./crypto');
 const { decrypt: decryptCred } = require('./credentials');
 const env = require('../../config/env');
+const { notify, notifyAdmins } = require('./notifications');
 
 // Map scheduleId → cron.ScheduledTask
 const activeTasks = new Map();
@@ -91,6 +92,11 @@ async function executeSchedule(scheduleId) {
       data: { lastRun: new Date(), lastStatus: 'success' },
     });
 
+    if (schedule.ownerId) {
+      notify(schedule.ownerId, 'schedule_success', 'Planification exécutée',
+        `La planification "${schedule.name}" s'est exécutée avec succès (backup ${entry.backupId}).`);
+    }
+
     // Rétention : supprimer les runs les plus anciens au-delà de retentionCount
     if (schedule.retentionCount) {
       const allRuns = await db.scheduledBackupRun.findMany({
@@ -112,6 +118,12 @@ async function executeSchedule(scheduleId) {
       where: { id: scheduleId },
       data: { lastRun: new Date(), lastStatus: 'error' },
     });
+    if (schedule.ownerId) {
+      notify(schedule.ownerId, 'schedule_error', 'Planification échouée',
+        `La planification "${schedule.name}" a échoué : ${err.message}`);
+    }
+    notifyAdmins('schedule_error', 'Planification échouée',
+      `La planification "${schedule.name}" a échoué : ${err.message}`);
   } finally {
     if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
     if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }

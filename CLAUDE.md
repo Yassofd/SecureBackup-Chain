@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 10
-- **Dernière phase complétée** : Phase 9 — Sauvegardes planifiées (node-cron)
-- **Prochaine action** : voir docs/phases/phase-10.md
+- **Phase en cours** : Phase 11
+- **Dernière phase complétée** : Phase 10 — Audit trail et notifications
+- **Prochaine action** : voir docs/phases/phase-11.md
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

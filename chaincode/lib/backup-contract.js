@@ -8,6 +8,47 @@ class BackupContract extends Contract {
         console.info('=== backup-cc initialisé ===');
     }
 
+    // ─── Audit interne ────────────────────────────────────────────────────────
+
+    async _recordAudit(ctx, action, target, details) {
+        const ts = new Date().toISOString();
+        const txId = ctx.stub.getTxID();
+        const actor = ctx.clientIdentity.getID();
+        const key = `audit_${ts}_${txId}`;
+        const entry = { action, target, details, actor, timestamp: ts, txId };
+        await ctx.stub.putState(key, Buffer.from(JSON.stringify(entry)));
+    }
+
+    async recordAuditEntry(ctx, action, target, detailsJson) {
+        const details = detailsJson ? JSON.parse(detailsJson) : {};
+        await this._recordAudit(ctx, action, target, details);
+        return JSON.stringify({ recorded: true });
+    }
+
+    async getAuditHistory(ctx, filtersJson) {
+        const filters = filtersJson ? JSON.parse(filtersJson) : {};
+        const iterator = await ctx.stub.getStateByRange('audit_', 'audit_~');
+        const results = [];
+        let res = await iterator.next();
+        while (!res.done) {
+            try {
+                const entry = JSON.parse(res.value.value.toString());
+                if (filters.action && entry.action !== filters.action) { res = await iterator.next(); continue; }
+                if (filters.target && entry.target !== filters.target) { res = await iterator.next(); continue; }
+                if (filters.actor && !entry.actor.includes(filters.actor)) { res = await iterator.next(); continue; }
+                if (filters.dateFrom && entry.timestamp < filters.dateFrom) { res = await iterator.next(); continue; }
+                if (filters.dateTo && entry.timestamp > filters.dateTo) { res = await iterator.next(); continue; }
+                results.push(entry);
+            } catch (_) { /* skip malformed */ }
+            res = await iterator.next();
+        }
+        await iterator.close();
+        results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        return JSON.stringify(results);
+    }
+
+    // ─── Sauvegardes ─────────────────────────────────────────────────────────
+
     async registerBackup(ctx, backupId, cid, fileName, fileHash, fileSize, mimeType) {
         const existing = await ctx.stub.getState(backupId);
         if (existing && existing.length > 0) {
@@ -18,14 +59,9 @@ class BackupContract extends Contract {
         const ownerMSP = ctx.clientIdentity.getMSPID();
 
         const entry = {
-            backupId,
-            cid,
-            fileName,
-            fileHash,
+            backupId, cid, fileName, fileHash,
             fileSize: parseInt(fileSize, 10),
-            mimeType,
-            ownerId,
-            ownerMSP,
+            mimeType, ownerId, ownerMSP,
             timestamp: new Date().toISOString(),
             txId: ctx.stub.getTxID(),
             status: 'ACTIVE',
@@ -37,6 +73,7 @@ class BackupContract extends Contract {
         };
 
         await ctx.stub.putState(backupId, Buffer.from(JSON.stringify(entry)));
+        await this._recordAudit(ctx, 'BACKUP_REGISTERED', backupId, { cid, fileName, fileSize: entry.fileSize });
 
         ctx.stub.setEvent('BackupRegistered', Buffer.from(JSON.stringify({
             backupId, cid, fileName, ownerId, ownerMSP,
@@ -50,6 +87,7 @@ class BackupContract extends Contract {
         if (!data || data.length === 0) {
             throw new Error(`Sauvegarde ${backupId} introuvable`);
         }
+        await this._recordAudit(ctx, 'BACKUP_READ', backupId, {});
         return data.toString();
     }
 
@@ -60,10 +98,9 @@ class BackupContract extends Contract {
         while (!res.done) {
             const val = res.value.value.toString();
             try {
-                results.push(JSON.parse(val));
-            } catch (_) {
-                results.push(val);
-            }
+                const parsed = JSON.parse(val);
+                if (parsed.backupId) results.push(parsed);
+            } catch (_) { /* skip */ }
             res = await iterator.next();
         }
         await iterator.close();
@@ -85,6 +122,7 @@ class BackupContract extends Contract {
             result: valid,
         };
         await ctx.stub.putState(backupId, Buffer.from(JSON.stringify(entry)));
+        await this._recordAudit(ctx, 'INTEGRITY_VERIFIED', backupId, { valid, providedHash });
 
         ctx.stub.setEvent('IntegrityVerified', Buffer.from(JSON.stringify({
             backupId, result: valid, verifier: ctx.clientIdentity.getID(),
@@ -95,7 +133,6 @@ class BackupContract extends Contract {
 
     async getBackupsByOwner(ctx) {
         const ownerId = ctx.clientIdentity.getID();
-        // CouchDB rich query pour filtrer par ownerId
         const query = JSON.stringify({ selector: { ownerId } });
         const iterator = await ctx.stub.getQueryResult(query);
         const results = [];
