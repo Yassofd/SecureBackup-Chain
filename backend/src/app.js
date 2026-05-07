@@ -11,6 +11,7 @@ const sshServersRouter = require('./routes/ssh-servers');
 const schedulesRouter = require('./routes/schedules');
 const auditRouter = require('./routes/audit');
 const notificationsRouter = require('./routes/notifications');
+const networkRouter = require('./routes/network');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/ssh-servers', sshServersRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/network', networkRouter);
 
 app.use(errorHandler);
 

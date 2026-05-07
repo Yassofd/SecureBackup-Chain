@@ -15,6 +15,7 @@ import RemoteBackup from './pages/RemoteBackup';
 import Schedules from './pages/Schedules';
 import Notifications from './pages/Notifications';
 import Audit from './pages/Audit';
+import Network from './pages/Network';
 
 function AppRoutes() {
   const [status, setStatus] = useState(null); // null = loading
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="schedules" element={<Schedules />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="audit" element={<Audit />} />
+        <Route path="network" element={<Network />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

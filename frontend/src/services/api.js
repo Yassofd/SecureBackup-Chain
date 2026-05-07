@@ -74,4 +74,11 @@ export const auditApi = {
   exportPdf: (params) => api.get('/audit/export', { params: { ...params, format: 'pdf' }, responseType: 'blob' }),
 };
 
+export const networkApi = {
+  topology: () => api.get('/network/topology'),
+  health:   () => api.get('/network/health'),
+  node:     (id) => api.get(`/network/nodes/${id}`),
+  logs:     (id, lines = 50) => api.get(`/network/nodes/${id}/logs`, { params: { lines } }),
+};
+
 export default api;

@@ -112,6 +112,23 @@ model Notification {
   @@map("notifications")
 }
 
+model NetworkNode {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(100)
+  type         String    @db.VarChar(20)
+  organization String?   @db.VarChar(100)
+  host         String?   @db.VarChar(255)
+  port         Int?
+  status       String    @default("unknown") @db.VarChar(20)
+  isLeader     Boolean   @default(false) @map("is_leader")
+  lastSeen     DateTime? @map("last_seen")
+  metrics      Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@unique([name])
+  @@map("network_nodes")
+}
+
 enum Role {
   admin
   responsable
