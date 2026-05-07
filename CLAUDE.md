@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 4 — Backend API minimal
-- **Dernière phase complétée** : Phase 3 — IPFS local
-- **Prochaine action** : créer l'API Express avec les endpoints de sauvegarde (upload IPFS + enregistrement Fabric)
+- **Phase en cours** : Phase 5 — Frontend React minimal
+- **Dernière phase complétée** : Phase 4 — Backend API minimal
+- **Prochaine action** : créer l'interface React avec Vite + TailwindCSS pour uploader et lister les sauvegardes
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

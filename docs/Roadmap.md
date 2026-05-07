@@ -17,7 +17,7 @@ Liste des 17 phases de développement progressif. **Une seule phase à la fois.*
 - [x] **Phase 1** — [Réseau Hyperledger Fabric local minimal](phases/phase-01.md)
 - [x] **Phase 2** — [Chaincode minimal](phases/phase-02.md)
 - [x] **Phase 3** — [IPFS local](phases/phase-03.md)
-- [ ] **Phase 4** — [Backend API minimal](phases/phase-04.md)
+- [x] **Phase 4** — [Backend API minimal](phases/phase-04.md)
 - [ ] **Phase 5** — [Frontend React minimal](phases/phase-05.md)
 
 ## Métier et sécurité (phases 6 à 10)
