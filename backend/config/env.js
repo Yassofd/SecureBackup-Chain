@@ -5,6 +5,13 @@ module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: parseInt(process.env.API_PORT || '3000', 10),
   MASTER_KEY: process.env.MASTER_KEY,
+  JWT: {
+    SECRET: process.env.JWT_SECRET,
+    REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+    EXPIRY: process.env.JWT_EXPIRY || '15m',
+    REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '7d',
+  },
+  DATABASE_URL: process.env.DATABASE_URL,
   FABRIC: {
     WALLET_PATH: process.env.FABRIC_WALLET_PATH || './wallet',
     CHANNEL: process.env.FABRIC_CHANNEL || 'backupchannel',

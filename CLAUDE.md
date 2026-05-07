@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 6 — Authentification et rôles RBAC
-- **Dernière phase complétée** : Phase 5 — Frontend React minimal (**MVP terminé**)
-- **Prochaine action** : implémenter JWT + rôles admin/operator/viewer côté API et protéger les routes frontend
+- **Phase en cours** : Phase 7 — Assistant de configuration initiale
+- **Dernière phase complétée** : Phase 6 — Authentification et rôles RBAC
+- **Prochaine action** : créer le wizard de configuration initiale (première connexion admin : réseau, IPFS, organisation)
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 
