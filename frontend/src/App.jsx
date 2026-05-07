@@ -1,41 +1,64 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Setup from './pages/Setup';
 import Dashboard from './pages/Dashboard';
 import Backups from './pages/Backups';
 import BackupDetail from './pages/BackupDetail';
 import Verify from './pages/Verify';
 
+function AppRoutes() {
+  const [status, setStatus] = useState(null); // null = loading
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    axios.get('/api/setup/status')
+      .then(({ data }) => {
+        setStatus(data.initialized);
+        if (!data.initialized) navigate('/setup', { replace: true });
+      })
+      .catch(() => setStatus(true)); // si API down, laisser passer
+  }, []);
+
+  if (status === null) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-slate-400 text-sm">Chargement…</div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/setup" element={<Setup />} />
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <Layout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="backups" element={<Backups />} />
+        <Route path="backups/:id" element={<BackupDetail />} />
+        <Route path="verify" element={<Verify />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="backups" element={<Backups />} />
-            <Route path="backups/:id" element={<BackupDetail />} />
-            <Route
-              path="verify"
-              element={
-                <PrivateRoute roles={['admin', 'responsable', 'auditeur']}>
-                  <Verify />
-                </PrivateRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </BrowserRouter>
     </AuthProvider>
   );

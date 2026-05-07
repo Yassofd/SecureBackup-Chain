@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 7 — Assistant de configuration initiale
-- **Dernière phase complétée** : Phase 6 — Authentification et rôles RBAC
-- **Prochaine action** : créer le wizard de configuration initiale (première connexion admin : réseau, IPFS, organisation)
+- **Phase en cours** : Phase 8 — Sauvegarde distante via SSH
+- **Dernière phase complétée** : Phase 7 — Assistant de configuration initiale
+- **Prochaine action** : implémenter le service SSH/SFTP pour sauvegarder vers des serveurs distants
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

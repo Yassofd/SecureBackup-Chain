@@ -1,8 +1,10 @@
 'use strict';
 const express = require('express');
 const cors = require('cors');
+const { requireInitialized } = require('./middleware/require-initialized');
 const errorHandler = require('./middleware/error-handler');
 const healthRouter = require('./routes/health');
+const setupRouter = require('./routes/setup');
 const authRouter = require('./routes/auth');
 const backupsRouter = require('./routes/backups');
 
@@ -11,7 +13,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Setup routes (toujours disponibles)
+app.use('/api/setup', setupRouter);
 app.use('/api/health', healthRouter);
+
+// Toutes les autres routes nécessitent que le système soit initialisé
+app.use(requireInitialized);
+
 app.use('/api/auth', authRouter);
 app.use('/api/backups', backupsRouter);
 

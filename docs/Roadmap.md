@@ -25,7 +25,7 @@ Liste des 17 phases de développement progressif. **Une seule phase à la fois.*
 Ajout de l'authentification, de la configuration initiale et des fonctionnalités métier.
 
 - [x] **Phase 6** — [Authentification et rôles RBAC](phases/phase-06.md)
-- [ ] **Phase 7** — [Assistant de configuration initiale](phases/phase-07.md)
+- [x] **Phase 7** — [Assistant de configuration initiale](phases/phase-07.md)
 - [ ] **Phase 8** — [Sauvegarde distante via SSH](phases/phase-08.md)
 - [ ] **Phase 9** — [Sauvegardes planifiées](phases/phase-09.md)
 - [ ] **Phase 10** — [Audit trail et notifications](phases/phase-10.md)

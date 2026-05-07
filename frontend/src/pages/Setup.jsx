@@ -1,0 +1,383 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, Building2, Server, User, CheckCircle, Download, ChevronRight, ChevronLeft, Wifi, WifiOff } from 'lucide-react';
+import axios from 'axios';
+import clsx from 'clsx';
+
+const api = axios.create({ baseURL: '/api' });
+
+// ── Utilitaires ──────────────────────────────────────────────────────────────
+
+function passwordStrength(pwd) {
+  return {
+    length:   pwd.length >= 8,
+    upper:    /[A-Z]/.test(pwd),
+    number:   /[0-9]/.test(pwd),
+    special:  /[^A-Za-z0-9]/.test(pwd),
+  };
+}
+
+function isStrongPassword(pwd) {
+  const s = passwordStrength(pwd);
+  return s.length && s.upper && s.number && s.special;
+}
+
+// ── Composants partiels ───────────────────────────────────────────────────────
+
+function Field({ label, error, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {children}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+function Input({ className, ...props }) {
+  return (
+    <input
+      className={clsx(
+        'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function StepIndicator({ current, total }) {
+  return (
+    <div className="flex items-center gap-2 mb-8">
+      {Array.from({ length: total }, (_, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div
+            className={clsx(
+              'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
+              i < current  ? 'bg-indigo-600 text-white'
+              : i === current ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-600'
+              : 'bg-gray-100 text-gray-400',
+            )}
+          >
+            {i < current ? <CheckCircle size={16} /> : i + 1}
+          </div>
+          {i < total - 1 && (
+            <div className={clsx('h-0.5 w-8', i < current ? 'bg-indigo-600' : 'bg-gray-200')} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Étapes ────────────────────────────────────────────────────────────────────
+
+function Step1({ data, setData, onNext }) {
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!data.name.trim()) e.name = 'Le nom est requis';
+    if (!data.email.trim() || !/\S+@\S+\.\S+/.test(data.email)) e.email = 'Email valide requis';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const sectors = ['Santé', 'Finance', 'Éducation', 'Administration', 'Industrie', 'Commerce', 'Technologie', 'Autre'];
+  const statuts = ['SA', 'SAS', 'SARL', 'EURL', 'SCI', 'Association', 'Administration publique', 'Autre'];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Nom de l'organisation *" error={errors.name}>
+          <Input value={data.name} onChange={e => setData({ ...data, name: e.target.value })} placeholder="Mon Organisation" />
+        </Field>
+        <Field label="Statut juridique">
+          <select value={data.legalStatus} onChange={e => setData({ ...data, legalStatus: e.target.value })}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            {statuts.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </Field>
+      </div>
+      <Field label="Adresse">
+        <Input value={data.address} onChange={e => setData({ ...data, address: e.target.value })} placeholder="123 rue de la Paix" />
+      </Field>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Code postal">
+          <Input value={data.postalCode} onChange={e => setData({ ...data, postalCode: e.target.value })} placeholder="75001" />
+        </Field>
+        <Field label="Ville">
+          <Input value={data.city} onChange={e => setData({ ...data, city: e.target.value })} placeholder="Paris" />
+        </Field>
+        <Field label="Pays">
+          <Input value={data.country} onChange={e => setData({ ...data, country: e.target.value })} placeholder="France" />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Téléphone">
+          <Input value={data.phone} onChange={e => setData({ ...data, phone: e.target.value })} placeholder="+33 1 23 45 67 89" />
+        </Field>
+        <Field label="Email de contact *" error={errors.email}>
+          <Input type="email" value={data.email} onChange={e => setData({ ...data, email: e.target.value })} placeholder="contact@org.fr" />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Secteur d'activité">
+          <select value={data.sector} onChange={e => setData({ ...data, sector: e.target.value })}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            {sectors.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Identifiant fiscal (optionnel)">
+          <Input value={data.taxId} onChange={e => setData({ ...data, taxId: e.target.value })} placeholder="FR12345678901" />
+        </Field>
+      </div>
+      <div className="flex justify-end pt-2">
+        <button onClick={() => validate() && onNext()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+          Suivant <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Step2({ data, setData, onNext, onBack }) {
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!data.host.trim()) e.host = 'IP ou DNS requis';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const testServer = async () => {
+    if (!data.host.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const { data: res } = await api.post('/setup/test-server', { host: data.host, port: data.apiPort });
+      setTestResult(res.reachable);
+    } catch { setTestResult(false); }
+    setTesting(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Field label="IP publique ou DNS *" error={errors.host}>
+        <div className="flex gap-2">
+          <Input value={data.host} onChange={e => setData({ ...data, host: e.target.value })} placeholder="192.168.1.1 ou mon-serveur.fr" />
+          <button onClick={testServer} disabled={testing}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm whitespace-nowrap hover:bg-gray-50 disabled:opacity-50">
+            {testing ? 'Test…' : testResult === true ? <><Wifi size={14} className="text-green-500" /> OK</> : testResult === false ? <><WifiOff size={14} className="text-red-500" /> Échec</> : 'Tester'}
+          </button>
+        </div>
+      </Field>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Port Fabric (Orderer)">
+          <Input type="number" value={data.fabricPort} onChange={e => setData({ ...data, fabricPort: e.target.value })} />
+        </Field>
+        <Field label="Port IPFS API">
+          <Input type="number" value={data.ipfsPort} onChange={e => setData({ ...data, ipfsPort: e.target.value })} />
+        </Field>
+        <Field label="Port API Backend">
+          <Input type="number" value={data.apiPort} onChange={e => setData({ ...data, apiPort: e.target.value })} />
+        </Field>
+      </div>
+      {testResult === false && (
+        <p className="text-amber-600 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Serveur inaccessible sur ce port. Vérifiez le pare-feu ou continuez si c'est attendu.
+        </p>
+      )}
+      <div className="flex justify-between pt-2">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+          <ChevronLeft size={16} /> Retour
+        </button>
+        <button onClick={() => validate() && onNext()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+          Suivant <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Step3({ data, setData, onNext, onBack }) {
+  const [errors, setErrors] = useState({});
+  const s = passwordStrength(data.password);
+
+  const validate = () => {
+    const e = {};
+    if (!data.email || !/\S+@\S+\.\S+/.test(data.email)) e.email = 'Email valide requis';
+    if (!isStrongPassword(data.password)) e.password = 'Mot de passe trop faible';
+    if (data.password !== data.confirm) e.confirm = 'Les mots de passe ne correspondent pas';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const rules = [
+    { key: 'length', label: '8 caractères minimum' },
+    { key: 'upper',  label: 'Une majuscule' },
+    { key: 'number', label: 'Un chiffre' },
+    { key: 'special', label: 'Un caractère spécial' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Field label="Email administrateur *" error={errors.email}>
+        <Input type="email" value={data.email} onChange={e => setData({ ...data, email: e.target.value })} placeholder="admin@organisation.fr" />
+      </Field>
+      <Field label="Mot de passe *" error={errors.password}>
+        <Input type="password" value={data.password} onChange={e => setData({ ...data, password: e.target.value })} />
+        {data.password && (
+          <div className="mt-2 grid grid-cols-2 gap-1">
+            {rules.map(r => (
+              <div key={r.key} className={clsx('flex items-center gap-1.5 text-xs', s[r.key] ? 'text-green-600' : 'text-gray-400')}>
+                <div className={clsx('w-1.5 h-1.5 rounded-full', s[r.key] ? 'bg-green-500' : 'bg-gray-300')} />
+                {r.label}
+              </div>
+            ))}
+          </div>
+        )}
+      </Field>
+      <Field label="Confirmer le mot de passe *" error={errors.confirm}>
+        <Input type="password" value={data.confirm} onChange={e => setData({ ...data, confirm: e.target.value })} />
+      </Field>
+      <div className="flex justify-between pt-2">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+          <ChevronLeft size={16} /> Retour
+        </button>
+        <button onClick={() => validate() && onNext()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+          Suivant <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Step4({ org, server, admin, onBack }) {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const initialize = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.post('/setup/initialize', {
+        organization: org,
+        server,
+        admin: { email: admin.email, password: admin.password },
+      });
+
+      // Télécharger le kit de récupération
+      const blob = new Blob([JSON.stringify(data.recoveryKit, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `securebackup-recovery-kit-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setTimeout(() => navigate('/login', { replace: true }), 1500);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de l\'initialisation');
+    }
+    setLoading(false);
+  };
+
+  const Row = ({ label, value }) => value ? (
+    <div className="flex py-2 border-b border-gray-100 last:border-0 text-sm">
+      <span className="w-44 text-gray-500 shrink-0">{label}</span>
+      <span className="text-gray-800">{value}</span>
+    </div>
+  ) : null;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-gray-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Organisation</p>
+        <Row label="Nom" value={org.name} />
+        <Row label="Statut" value={org.legalStatus} />
+        <Row label="Email" value={org.email} />
+        <Row label="Secteur" value={org.sector} />
+      </div>
+      <div className="bg-gray-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Serveur</p>
+        <Row label="Hôte" value={server.host} />
+        <Row label="Port Fabric" value={server.fabricPort} />
+        <Row label="Port IPFS" value={server.ipfsPort} />
+        <Row label="Port API" value={server.apiPort} />
+      </div>
+      <div className="bg-gray-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Administrateur</p>
+        <Row label="Email" value={admin.email} />
+        <Row label="Mot de passe" value="••••••••" />
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+        Le kit de récupération sera téléchargé automatiquement. Conservez-le en lieu sûr.
+      </div>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <div className="flex justify-between pt-1">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+          <ChevronLeft size={16} /> Retour
+        </button>
+        <button onClick={initialize} disabled={loading}
+          className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+          <Download size={15} />
+          {loading ? 'Initialisation…' : 'Initialiser le réseau'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Wizard principal ──────────────────────────────────────────────────────────
+
+const STEPS = [
+  { label: 'Organisation', icon: Building2 },
+  { label: 'Serveur',      icon: Server },
+  { label: 'Admin',        icon: User },
+  { label: 'Validation',   icon: CheckCircle },
+];
+
+export default function Setup() {
+  const [step, setStep] = useState(0);
+  const [org, setOrg] = useState({ name: '', legalStatus: 'SA', address: '', postalCode: '', city: '', country: 'France', phone: '', email: '', sector: 'Technologie', taxId: '' });
+  const [server, setServer] = useState({ host: '', fabricPort: '7050', ipfsPort: '5001', apiPort: '3000' });
+  const [admin, setAdmin] = useState({ email: '', password: '', confirm: '' });
+
+  const next = () => setStep(s => s + 1);
+  const back = () => setStep(s => s - 1);
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-4">
+            <Shield className="text-white" size={28} />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Configuration initiale</h1>
+          <p className="text-slate-400 text-sm mt-1">SecureBackup-Chain — {STEPS[step].label}</p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <StepIndicator current={step} total={STEPS.length} />
+
+          {step === 0 && <Step1 data={org} setData={setOrg} onNext={next} />}
+          {step === 1 && <Step2 data={server} setData={setServer} onNext={next} onBack={back} />}
+          {step === 2 && <Step3 data={admin} setData={setAdmin} onNext={next} onBack={back} />}
+          {step === 3 && <Step4 org={org} server={server} admin={admin} onBack={back} />}
+        </div>
+
+        <p className="text-center text-slate-500 text-xs mt-4">
+          Étape {step + 1} sur {STEPS.length}
+        </p>
+      </div>
+    </div>
+  );
+}
