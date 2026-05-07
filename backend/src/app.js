@@ -12,6 +12,7 @@ const schedulesRouter = require('./routes/schedules');
 const auditRouter = require('./routes/audit');
 const notificationsRouter = require('./routes/notifications');
 const networkRouter = require('./routes/network');
+const deploymentRouter = require('./routes/deployment');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/schedules', schedulesRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/network', networkRouter);
+app.use('/api/deployment', deploymentRouter);
 
 app.use(errorHandler);
 
