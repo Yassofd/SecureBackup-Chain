@@ -80,6 +80,26 @@ docker exec ipfs0 ipfs config Addresses.API "/ip4/0.0.0.0/tcp/5001"
 docker restart ipfs0
 ```
 
+### `GET /ipfs/<CID>` retourne 301 au lieu du contenu
+
+**Symptôme** : `curl http://localhost:8080/ipfs/<CID>` reçoit un redirect 301 vers `http://<CID>.ipfs.localhost:8080` qui ne résout pas en local.
+
+**Cause** : Depuis Kubo 0.18+, la gateway IPFS redirige vers le format "subdomain" par défaut pour l'isolation d'origine. Ce format ne fonctionne pas sans DNS local configuré.
+
+**Solution** : Ne jamais utiliser la gateway HTTP pour lire les fichiers en backend. Utiliser l'endpoint API à la place :
+```bash
+# ❌ Ne pas utiliser
+curl http://localhost:8080/ipfs/<CID>
+
+# ✅ Utiliser l'API v0/cat
+curl -s -X POST "http://localhost:5001/api/v0/cat?arg=<CID>"
+
+# Pour les tests en ligne de commande, forcer le suivi des redirects
+curl -sL http://localhost:8080/ipfs/<CID>
+```
+
+---
+
 ### Le fichier n'apparaît pas sur les autres nœuds IPFS
 
 **Symptôme** : Upload sur nœud A, mais récupération impossible depuis nœud B.
@@ -95,6 +115,121 @@ docker restart ipfs0
 - Forcer le pinning via cluster : `ipfs-cluster-ctl pin add <CID>`
 
 ## Backend (Node.js)
+
+### `uuid` v14 casse Jest (ESM-only)
+
+**Symptôme** : `require('uuid')` dans les tests Jest lève `SyntaxError: Cannot use import statement in a module` ou `Jest encountered an unexpected token`.
+
+**Cause** : `uuid` v14+ est ESM-only et ne supporte plus `require()`. Jest en mode CommonJS ne peut pas l'importer.
+
+**Solution** : Remplacer `uuid` par le `randomUUID` natif de Node.js 18+ :
+```javascript
+// ❌ Avant
+const { v4: uuidv4 } = require('uuid');
+const id = uuidv4();
+
+// ✅ Après
+const { randomUUID } = require('crypto');
+const id = randomUUID();
+```
+Ne pas mettre à jour `uuid` au-delà de v9 tant que Jest reste en CommonJS.
+
+---
+
+### Tests supertest : mauvais type MIME ou `res.body` vide pour les réponses binaires
+
+**Symptôme 1** : Assertion `expect(res.body.mimeType).toBe('application/octet-stream')` échoue — supertest détecte `text/plain` pour les fichiers `.txt`.
+
+**Cause** : supertest détecte le MIME du fichier uploadé selon l'extension, pas selon le contenu. `.txt` donne `text/plain` même si on attend `application/octet-stream`.
+
+**Solution** : Ne pas asserter une valeur fixe :
+```javascript
+expect(res.body.mimeType).toEqual(expect.any(String));
+```
+
+**Symptôme 2** : `res.body` est `{}` alors que la réponse contient des données binaires (téléchargement de fichier).
+
+**Cause** : supertest ne parse pas les réponses avec `Content-Type: application/octet-stream` en JSON. `res.body` reste vide.
+
+**Solution** : Utiliser `res.text` pour comparer le contenu brut en binaire/texte :
+```javascript
+expect(res.text).toBe(originalContent.toString());
+```
+
+---
+
+### `The datasource property 'url' is no longer supported` (Prisma 7)
+
+**Symptôme** : `prisma generate` ou le démarrage du backend lève `The datasource property 'url' is no longer supported in Prisma 7`.
+
+**Cause** : Prisma 7 a supprimé la propriété `url` du bloc `datasource` dans le schéma.
+
+**Solution** : Rester sur Prisma 5 qui utilise le format standard :
+```bash
+npm install prisma@5 @prisma/client@5
+```
+Le schéma reste inchangé :
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+---
+
+### Mauvais chemin vers `crypto-config` depuis `fabric.js`
+
+**Symptôme** : `Error: ENOENT: no such file or directory` sur les certificats TLS ou la clé privée de l'admin au démarrage du backend.
+
+**Cause** : `__dirname` dans `backend/src/services/fabric.js` pointe vers `/workspaces/Site_kara/backend/src/services/`. Utiliser `../../../../network/crypto-config` (4 niveaux) remonte trop haut et produit `/workspaces/network/crypto-config` (inexistant).
+
+**Solution** : 3 niveaux suffisent pour atteindre la racine du workspace :
+```javascript
+const CRYPTO_BASE = path.resolve(__dirname, '../../../network/crypto-config');
+// __dirname = .../backend/src/services
+// ../../../  = .../   (racine workspace) ✓
+```
+
+---
+
+### `CORE_PEER_MSPCONFIGPATH` manquant pour les commandes peer CLI
+
+**Symptôme** : `peer channel join` ou `peer lifecycle chaincode` échouent avec `failed to load config` ou `no such identity`.
+
+**Cause** : `fabric-peer:2.5.4` utilise `FABRIC_CFG_PATH=/var/hyperledger/fabric/config` mais ne déduit pas automatiquement `CORE_PEER_MSPCONFIGPATH`.
+
+**Solution** : Toujours exporter la variable avant les commandes peer CLI :
+```bash
+export CORE_PEER_MSPCONFIGPATH=/path/to/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+```
+
+---
+
+### `FabricError: Query failed. Errors: []` sur evaluateTransaction
+
+**Symptôme** : `GET /api/backups` retourne 500 avec `Query failed. Errors: []`. Les sauvegardes n'apparaissent pas dans l'interface. Pourtant l'upload (`submitTransaction`) fonctionne.
+
+**Cause** : Avec `discovery: { enabled: false }`, la stratégie de query par défaut (`MSPID_SCOPE_SINGLE`) appelle `getEndorsers(mspId)` pour trouver les peers de l'organisation. Sans service discovery actif, cette liste retourne 0 peers. La boucle du `SingleQueryHandler` ne s'exécute pas et lève l'erreur avec un tableau d'erreurs vide.
+
+**Solution** : Spécifier explicitement `PREFER_MSPID_SCOPE_SINGLE` qui tente d'abord les peers de l'org, puis fait un fallback sur tous les peers du réseau :
+```javascript
+// backend/src/services/fabric.js
+const { Gateway, Wallets, DefaultQueryHandlerStrategies } = require('fabric-network');
+
+await gateway.connect(buildConnectionProfile(), {
+  wallet,
+  identity: env.FABRIC.ADMIN_USER,
+  discovery: { enabled: false },
+  eventHandlerOptions: { commitTimeout: 300 },
+  queryHandlerOptions: {
+    timeout: 60,
+    strategy: DefaultQueryHandlerStrategies.PREFER_MSPID_SCOPE_SINGLE,
+  },
+});
+```
+
+---
 
 ### Erreur "user not found in wallet"
 
@@ -269,7 +404,5 @@ configtxlator proto_decode --input block.pb --type common.Block | jq
 ```bash
 docker compose logs -f --tail 50
 ```
-
----
 
 **Si une erreur ne figure pas ici, l'ajouter à ce fichier après l'avoir résolue.**

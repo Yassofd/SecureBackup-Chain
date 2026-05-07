@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 8 — Sauvegarde distante via SSH
-- **Dernière phase complétée** : Phase 7 — Assistant de configuration initiale
-- **Prochaine action** : implémenter le service SSH/SFTP pour sauvegarder vers des serveurs distants
+- **Phase en cours** : Phase 9
+- **Dernière phase complétée** : Phase 8 — Sauvegarde distante via SSH
+- **Prochaine action** : voir docs/phases/phase-09.md
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

@@ -19,6 +19,7 @@ model User {
 
   refreshTokens    RefreshToken[]
   backupOwnerships BackupOwnership[]
+  sshServers       SshServer[]
 
   @@map("users")
 }
@@ -41,6 +42,22 @@ model BackupOwnership {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("backup_ownership")
+}
+
+model SshServer {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String   @db.VarChar(255)
+  host                 String   @db.VarChar(255)
+  port                 Int      @default(22)
+  username             String   @db.VarChar(100)
+  authType             String   @map("auth_type") @db.VarChar(20)
+  encryptedCredentials String   @map("encrypted_credentials")
+  description          String?
+  ownerId              String?  @map("owner_id") @db.Uuid
+  owner                User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@map("ssh_servers")
 }
 
 enum Role {

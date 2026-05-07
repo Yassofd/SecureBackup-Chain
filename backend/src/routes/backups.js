@@ -2,9 +2,13 @@
 const { Router } = require('express');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const fabric = require('../services/fabric');
 const ipfs = require('../services/ipfs');
 const { sha256, encryptAES, decryptAES } = require('../services/crypto');
+const { encrypt: encryptCred, decrypt: decryptCred } = require('../services/credentials');
+const sshService = require('../services/ssh');
 const db = require('../services/db');
 const authMiddleware = require('../middleware/auth');
 const requireRole = require('../middleware/role');
@@ -106,6 +110,82 @@ router.get('/:id/download', requireRole('admin', 'responsable'), async (req, res
   } catch (err) {
     if (err.message?.includes('introuvable')) return res.status(404).json({ error: err.message });
     next(err);
+  }
+});
+
+// POST /api/backups/remote — sauvegarde depuis un serveur distant via SSH
+router.post('/remote', requireRole('admin', 'responsable'), async (req, res, next) => {
+  let tmpPath = null;
+  let ssh = null;
+  try {
+    const { serverId, remotePath } = req.body;
+    if (!serverId || !remotePath) {
+      return res.status(400).json({ error: 'serverId et remotePath sont obligatoires' });
+    }
+
+    // Récupérer + déchiffrer les credentials
+    const server = await db.sshServer.findUnique({ where: { id: serverId } });
+    if (!server) return res.status(404).json({ error: 'Serveur SSH non trouvé' });
+    if (req.user.role !== 'admin' && server.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+
+    const credentials = JSON.parse(decryptCred(server.encryptedCredentials));
+
+    // Connexion SSH
+    ssh = await sshService.connect({
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      auth_type: server.authType,
+      credentials,
+    });
+
+    // Hash distant
+    const remoteFileHash = await sshService.remoteHash(ssh, remotePath);
+
+    // Téléchargement
+    const { localPath, isDirectory } = await sshService.fetchRemotePath(ssh, remotePath);
+    tmpPath = localPath;
+
+    await sshService.closeConnection(ssh);
+    ssh = null;
+
+    // Lire le fichier local
+    const buffer = fs.readFileSync(tmpPath);
+    const localHash = sha256(buffer);
+    const size = buffer.length;
+    const baseName = path.posix.basename(remotePath);
+    const fileName = isDirectory ? `${baseName}.tar.gz` : baseName;
+    const mimeType = isDirectory ? 'application/gzip' : 'application/octet-stream';
+
+    // Chiffrement + IPFS
+    const encrypted = encryptAES(buffer, env.MASTER_KEY);
+    const cid = await ipfs.add(encrypted, fileName);
+
+    // Enregistrement Fabric
+    const backupId = randomUUID();
+    const entry = await fabric.submitTransaction(
+      'registerBackup',
+      backupId, cid, fileName, localHash, String(size), mimeType,
+    );
+
+    await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
+
+    res.status(201).json({
+      backupId: entry.backupId,
+      cid: entry.cid,
+      txId: entry.txId,
+      remoteHash: remoteFileHash,
+      localHash,
+      source: `${server.username}@${server.host}:${remotePath}`,
+    });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  } finally {
+    if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
   }
 });
 

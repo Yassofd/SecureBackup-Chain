@@ -10,6 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Backups from './pages/Backups';
 import BackupDetail from './pages/BackupDetail';
 import Verify from './pages/Verify';
+import SshServers from './pages/SshServers';
+import RemoteBackup from './pages/RemoteBackup';
 
 function AppRoutes() {
   const [status, setStatus] = useState(null); // null = loading
@@ -48,6 +50,8 @@ function AppRoutes() {
         <Route path="backups" element={<Backups />} />
         <Route path="backups/:id" element={<BackupDetail />} />
         <Route path="verify" element={<Verify />} />
+        <Route path="ssh-servers" element={<SshServers />} />
+        <Route path="remote-backup" element={<RemoteBackup />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

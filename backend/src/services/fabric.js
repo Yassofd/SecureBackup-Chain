@@ -1,7 +1,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
-const { Gateway, Wallets } = require('fabric-network');
+const { Gateway, Wallets, DefaultQueryHandlerStrategies } = require('fabric-network');
 const env = require('../../config/env');
 const logger = require('../utils/logger');
 
@@ -96,6 +96,7 @@ async function getGateway() {
     identity: env.FABRIC.ADMIN_USER,
     discovery: { enabled: false },
     eventHandlerOptions: { commitTimeout: 300 },
+    queryHandlerOptions: { timeout: 60, strategy: DefaultQueryHandlerStrategies.PREFER_MSPID_SCOPE_SINGLE },
   });
   logger.info('Fabric gateway connected');
   return gateway;
@@ -107,16 +108,36 @@ async function getContract() {
   return network.getContract(env.FABRIC.CHAINCODE);
 }
 
+async function withRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    const isConnErr = err.message && (
+      err.message.includes('is not connected') ||
+      err.message.includes('Query failed. Errors: []') ||
+      err.message.includes('No valid responses')
+    );
+    if (!isConnErr) throw err;
+    logger.warn('Fabric connection lost, reconnecting...');
+    disconnect();
+    return await fn();
+  }
+}
+
 async function submitTransaction(fn, ...args) {
-  const contract = await getContract();
-  const result = await contract.submitTransaction(fn, ...args);
-  return JSON.parse(result.toString());
+  return withRetry(async () => {
+    const contract = await getContract();
+    const result = await contract.submitTransaction(fn, ...args);
+    return JSON.parse(result.toString());
+  });
 }
 
 async function evaluateTransaction(fn, ...args) {
-  const contract = await getContract();
-  const result = await contract.evaluateTransaction(fn, ...args);
-  return JSON.parse(result.toString());
+  return withRetry(async () => {
+    const contract = await getContract();
+    const result = await contract.evaluateTransaction(fn, ...args);
+    return JSON.parse(result.toString());
+  });
 }
 
 async function healthCheck() {
