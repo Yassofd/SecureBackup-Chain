@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 5 — Frontend React minimal
-- **Dernière phase complétée** : Phase 4 — Backend API minimal
-- **Prochaine action** : créer l'interface React avec Vite + TailwindCSS pour uploader et lister les sauvegardes
+- **Phase en cours** : Phase 6 — Authentification et rôles RBAC
+- **Dernière phase complétée** : Phase 5 — Frontend React minimal (**MVP terminé**)
+- **Prochaine action** : implémenter JWT + rôles admin/operator/viewer côté API et protéger les routes frontend
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 
