@@ -8,14 +8,26 @@ const prisma = new PrismaClient();
 
 // Conteneurs Fabric/IPFS à surveiller avec leur type et organisation
 const WATCHED_CONTAINERS = [
-  { name: 'orderer1.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 7050 },
-  { name: 'orderer2.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 8050 },
-  { name: 'orderer3.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 9050 },
-  { name: 'peer0.org1.example.com', type: 'peer',     org: 'Org1MSP',    port: 7051 },
-  { name: 'ca.org1.example.com',    type: 'ca',       org: 'Org1MSP',    port: 7054 },
-  { name: 'couchdb0',               type: 'couchdb',  org: 'Org1MSP',    port: 5984 },
-  { name: 'ipfs0',                  type: 'ipfs',     org: null,         port: 5001 },
-  { name: 'backup-cc',              type: 'chaincode', org: 'Org1MSP',   port: null },
+  // Nœud 1 — Org1
+  { name: 'orderer.org1.example.com', type: 'orderer',   org: 'Org1', port: 7050 },
+  { name: 'peer0.org1.example.com',   type: 'peer',      org: 'Org1', port: 7051 },
+  { name: 'ca.org1.example.com',      type: 'ca',        org: 'Org1', port: 7054 },
+  { name: 'couchdb0',                 type: 'couchdb',   org: 'Org1', port: 5984 },
+  { name: 'ipfs0',                    type: 'ipfs',      org: 'Org1', port: 5001 },
+  // Nœud 2 — Org2
+  { name: 'orderer.org2.example.com', type: 'orderer',   org: 'Org2', port: 8050 },
+  { name: 'peer0.org2.example.com',   type: 'peer',      org: 'Org2', port: 8051 },
+  { name: 'ca.org2.example.com',      type: 'ca',        org: 'Org2', port: 8054 },
+  { name: 'couchdb1',                 type: 'couchdb',   org: 'Org2', port: 6984 },
+  { name: 'ipfs1',                    type: 'ipfs',      org: 'Org2', port: 5002 },
+  // Nœud 3 — Org3
+  { name: 'orderer.org3.example.com', type: 'orderer',   org: 'Org3', port: 9050 },
+  { name: 'peer0.org3.example.com',   type: 'peer',      org: 'Org3', port: 9051 },
+  { name: 'ca.org3.example.com',      type: 'ca',        org: 'Org3', port: 9054 },
+  { name: 'couchdb2',                 type: 'couchdb',   org: 'Org3', port: 7984 },
+  { name: 'ipfs2',                    type: 'ipfs',      org: 'Org3', port: 5003 },
+  // Partagé
+  { name: 'backup-cc',                type: 'chaincode', org: null,   port: null },
 ];
 
 let intervalHandle = null;

@@ -19,37 +19,46 @@ function buildConnectionProfile() {
     },
     channels: {
       [env.FABRIC.CHANNEL]: {
-        orderers: ['orderer1.example.com', 'orderer2.example.com', 'orderer3.example.com'],
+        orderers: ['orderer.org1.example.com', 'orderer.org2.example.com', 'orderer.org3.example.com'],
         peers: {
-          'peer0.org1.example.com': {
-            endorsingPeer: true, chaincodeQuery: true,
-            ledgerQuery: true, eventSource: true,
-          },
+          'peer0.org1.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: true },
+          'peer0.org2.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: false },
+          'peer0.org3.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: false },
         },
       },
     },
     organizations: {
       Org1: {
-        mspid: env.FABRIC.ORG_MSP,
+        mspid: 'Org1MSP',
         peers: ['peer0.org1.example.com'],
         certificateAuthorities: ['ca.org1.example.com'],
       },
+      Org2: {
+        mspid: 'Org2MSP',
+        peers: ['peer0.org2.example.com'],
+        certificateAuthorities: ['ca.org2.example.com'],
+      },
+      Org3: {
+        mspid: 'Org3MSP',
+        peers: ['peer0.org3.example.com'],
+        certificateAuthorities: ['ca.org3.example.com'],
+      },
     },
     orderers: {
-      'orderer1.example.com': {
+      'orderer.org1.example.com': {
         url: 'grpcs://localhost:7050',
-        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer1.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer1.example.com' },
+        tlsCACerts: { pem: read('ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer.org1.example.com' },
       },
-      'orderer2.example.com': {
+      'orderer.org2.example.com': {
         url: 'grpcs://localhost:8050',
-        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer2.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer2.example.com' },
+        tlsCACerts: { pem: read('ordererOrganizations/org2.example.com/orderers/orderer.org2.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer.org2.example.com' },
       },
-      'orderer3.example.com': {
+      'orderer.org3.example.com': {
         url: 'grpcs://localhost:9050',
-        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer3.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer3.example.com' },
+        tlsCACerts: { pem: read('ordererOrganizations/org3.example.com/orderers/orderer.org3.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer.org3.example.com' },
       },
     },
     peers: {
@@ -58,12 +67,34 @@ function buildConnectionProfile() {
         tlsCACerts: { pem: read('peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt') },
         grpcOptions: { 'ssl-target-name-override': 'peer0.org1.example.com' },
       },
+      'peer0.org2.example.com': {
+        url: 'grpcs://localhost:8051',
+        tlsCACerts: { pem: read('peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'peer0.org2.example.com' },
+      },
+      'peer0.org3.example.com': {
+        url: 'grpcs://localhost:9051',
+        tlsCACerts: { pem: read('peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'peer0.org3.example.com' },
+      },
     },
     certificateAuthorities: {
       'ca.org1.example.com': {
         url: 'https://localhost:7054',
         caName: 'ca-org1',
         tlsCACerts: { pem: [read('peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem')] },
+        httpOptions: { verify: false },
+      },
+      'ca.org2.example.com': {
+        url: 'https://localhost:8054',
+        caName: 'ca-org2',
+        tlsCACerts: { pem: [read('peerOrganizations/org2.example.com/ca/ca.org2.example.com-cert.pem')] },
+        httpOptions: { verify: false },
+      },
+      'ca.org3.example.com': {
+        url: 'https://localhost:9054',
+        caName: 'ca-org3',
+        tlsCACerts: { pem: [read('peerOrganizations/org3.example.com/ca/ca.org3.example.com-cert.pem')] },
         httpOptions: { verify: false },
       },
     },
@@ -76,14 +107,10 @@ async function getWallet() {
 
   if (await wallet.get(env.FABRIC.ADMIN_USER)) return wallet;
 
-  const certPath = path.join(
-    CRYPTO_BASE,
-    'peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem',
-  );
-  const keyPath = path.join(
-    CRYPTO_BASE,
-    'peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore/priv_sk',
-  );
+  const certPath = path.join(CRYPTO_BASE,
+    'peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem');
+  const keyPath = path.join(CRYPTO_BASE,
+    'peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore/priv_sk');
 
   await wallet.put(env.FABRIC.ADMIN_USER, {
     credentials: {
