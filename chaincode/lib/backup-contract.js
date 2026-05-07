@@ -2,6 +2,12 @@
 
 const { Contract } = require('fabric-contract-api');
 
+// Deterministic timestamp from the Fabric transaction header (same on all peers)
+function txTimestamp(ctx) {
+    const t = ctx.stub.getTxTimestamp();
+    return new Date(Number(t.seconds) * 1000 + Math.floor(t.nanos / 1e6)).toISOString();
+}
+
 class BackupContract extends Contract {
 
     async initLedger(ctx) {
@@ -11,7 +17,7 @@ class BackupContract extends Contract {
     // ─── Audit interne ────────────────────────────────────────────────────────
 
     async _recordAudit(ctx, action, target, details) {
-        const ts = new Date().toISOString();
+        const ts = txTimestamp(ctx);
         const txId = ctx.stub.getTxID();
         const actor = ctx.clientIdentity.getID();
         const key = `audit_${ts}_${txId}`;
@@ -62,7 +68,7 @@ class BackupContract extends Contract {
             backupId, cid, fileName, fileHash,
             fileSize: parseInt(fileSize, 10),
             mimeType, ownerId, ownerMSP,
-            timestamp: new Date().toISOString(),
+            timestamp: txTimestamp(ctx),
             txId: ctx.stub.getTxID(),
             status: 'ACTIVE',
             source: 'LOCAL',
@@ -117,7 +123,7 @@ class BackupContract extends Contract {
 
         entry.verificationCount += 1;
         entry.lastVerification = {
-            timestamp: new Date().toISOString(),
+            timestamp: txTimestamp(ctx),
             verifier: ctx.clientIdentity.getID(),
             result: valid,
         };

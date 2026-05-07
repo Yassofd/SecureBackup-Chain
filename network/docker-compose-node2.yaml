@@ -1,0 +1,134 @@
+version: '3.8'
+# ══════════════════════════════════════════════════════════════════════════════
+# NŒUD 2 — Org2 : orderer.org2 + peer0.org2 + ca.org2 + couchdb1 + ipfs1
+# Machine 2 uniquement. Requiert .env avec ORG1_IP, ORG2_IP, ORG3_IP
+# ══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  fabric:
+    name: securebackup-fabric
+
+x-extra-hosts: &extra-hosts
+  extra_hosts:
+    - "orderer.org1.example.com:${ORG1_IP}"
+    - "peer0.org1.example.com:${ORG1_IP}"
+    - "ca.org1.example.com:${ORG1_IP}"
+    - "orderer.org3.example.com:${ORG3_IP}"
+    - "peer0.org3.example.com:${ORG3_IP}"
+    - "ca.org3.example.com:${ORG3_IP}"
+
+services:
+
+  orderer.org2.example.com:
+    image: hyperledger/fabric-orderer:2.5.4
+    container_name: orderer.org2.example.com
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8050
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=Org2OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+    volumes:
+      - ./channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
+      - ./crypto-config/ordererOrganizations/org2.example.com/orderers/orderer.org2.example.com/msp:/var/hyperledger/orderer/msp
+      - ./crypto-config/ordererOrganizations/org2.example.com/orderers/orderer.org2.example.com/tls:/var/hyperledger/orderer/tls
+      - orderer2-data:/var/hyperledger/production/orderer
+    ports:
+      - "8050:8050"
+    <<: *extra-hosts
+    networks:
+      - fabric
+
+  ca.org2.example.com:
+    image: hyperledger/fabric-ca:1.5.7
+    container_name: ca.org2.example.com
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-org2
+      - FABRIC_CA_SERVER_TLS_ENABLED=true
+      - FABRIC_CA_SERVER_PORT=8054
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./crypto-config/peerOrganizations/org2.example.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    ports:
+      - "8054:8054"
+    <<: *extra-hosts
+    networks:
+      - fabric
+
+  couchdb1:
+    image: couchdb:3.3
+    container_name: couchdb1
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - "6984:5984"
+    networks:
+      - fabric
+
+  peer0.org2.example.com:
+    image: hyperledger/fabric-peer:2.5.4
+    container_name: peer0.org2.example.com
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=securebackup-fabric
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.org2.example.com
+      - CORE_PEER_ADDRESS=peer0.org2.example.com:8051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:8051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.org2.example.com:8052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:8052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org2.example.com:8051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org2.example.com:8051
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls:/etc/hyperledger/fabric/tls
+      - peer0-org2-data:/var/hyperledger/production
+    ports:
+      - "8051:8051"
+    depends_on:
+      - orderer.org2.example.com
+      - couchdb1
+    <<: *extra-hosts
+    networks:
+      - fabric
+
+  ipfs1:
+    image: ipfs/kubo:latest
+    container_name: ipfs1
+    environment:
+      - IPFS_PROFILE=server
+    volumes:
+      - ipfs1-data:/data/ipfs
+    ports:
+      - "4002:4001"
+      - "5002:5001"
+      - "8081:8080"
+    networks:
+      - fabric
+
+volumes:
+  orderer2-data:
+  peer0-org2-data:
+  ipfs1-data:

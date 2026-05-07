@@ -131,7 +131,7 @@ async function getGateway() {
   await gateway.connect(buildConnectionProfile(), {
     wallet,
     identity: env.FABRIC.ADMIN_USER,
-    discovery: { enabled: false },
+    discovery: { enabled: true, asLocalhost: true },
     eventHandlerOptions: { commitTimeout: 300 },
     queryHandlerOptions: { timeout: 60, strategy: DefaultQueryHandlerStrategies.PREFER_MSPID_SCOPE_SINGLE },
   });

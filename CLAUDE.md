@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 13
-- **Dernière phase complétée** : Phase 12 (refonte) — Architecture 3 nœuds complets (orderer+peer+CA+MSP+IPFS par org)
-- **Prochaine action** : voir docs/phases/phase-13.md
+- **Phase en cours** : Phase 14
+- **Dernière phase complétée** : Phase 13 — Déploiement multi-machines (docker-compose par nœud, setup-wizard.sh, SSE connectivity, page Déploiement)
+- **Prochaine action** : voir docs/phases/phase-14.md
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

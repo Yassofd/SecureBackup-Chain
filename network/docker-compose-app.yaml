@@ -1,0 +1,81 @@
+version: '3.8'
+# ══════════════════════════════════════════════════════════════════════════════
+# SERVEUR APPLICATION — Backend + Frontend + PostgreSQL
+# Machine App uniquement. Requiert .env avec ORG1_IP, ORG2_IP, ORG3_IP
+# ══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  app:
+    name: securebackup-app
+
+services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: securebackup-db
+    environment:
+      - POSTGRES_DB=${DB_NAME:-securebackup}
+      - POSTGRES_USER=${DB_USER:-securebackup}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-securebackup}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app
+
+  backend:
+    image: node:18-alpine
+    container_name: securebackup-backend
+    working_dir: /app
+    command: sh -c "npm install && npx prisma migrate deploy && node src/server.js"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3000
+      - DATABASE_URL=postgresql://${DB_USER:-securebackup}:${DB_PASSWORD:-securebackup}@db:5432/${DB_NAME:-securebackup}
+      - JWT_SECRET=${JWT_SECRET}
+      - MASTER_KEY=${MASTER_KEY}
+      - FABRIC_CHANNEL=backupchannel
+      - FABRIC_CHAINCODE=backup-cc
+      - FABRIC_WALLET_PATH=/app/wallet
+      - FABRIC_ADMIN_USER=admin
+      - FABRIC_ORG_MSP=Org1MSP
+      - IPFS_API_URL=http://${ORG1_IP}:5001
+    volumes:
+      - ../backend:/app
+      - ../network/crypto-config:/app/../network/crypto-config:ro
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "orderer.org1.example.com:${ORG1_IP}"
+      - "peer0.org1.example.com:${ORG1_IP}"
+      - "ca.org1.example.com:${ORG1_IP}"
+      - "orderer.org2.example.com:${ORG2_IP}"
+      - "peer0.org2.example.com:${ORG2_IP}"
+      - "ca.org2.example.com:${ORG2_IP}"
+      - "orderer.org3.example.com:${ORG3_IP}"
+      - "peer0.org3.example.com:${ORG3_IP}"
+      - "ca.org3.example.com:${ORG3_IP}"
+    depends_on:
+      - db
+    networks:
+      - app
+
+  frontend:
+    image: node:18-alpine
+    container_name: securebackup-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run build && npx serve -s dist -l 80"
+    environment:
+      - VITE_API_URL=http://${APP_IP:-localhost}:3000
+    volumes:
+      - ../frontend:/app
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app
+
+volumes:
+  db-data:

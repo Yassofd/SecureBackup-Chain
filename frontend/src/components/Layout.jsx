@@ -2,7 +2,7 @@ import { NavLink, Outlet, Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import {
   Shield, HardDrive, CheckCircle, LayoutDashboard, LogOut,
-  Server, CloudUpload, CalendarClock, Bell, ClipboardList, Network,
+  Server, CloudUpload, CalendarClock, Bell, ClipboardList, Network, Boxes,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/verify', label: 'Vérifier', icon: CheckCircle },
   { to: '/audit', label: 'Audit', icon: ClipboardList },
   { to: '/network', label: 'Réseau', icon: Network },
+  { to: '/deployment', label: 'Déploiement', icon: Boxes },
 ];
 
 const roleBadge = {

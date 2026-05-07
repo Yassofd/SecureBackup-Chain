@@ -16,6 +16,7 @@ import Schedules from './pages/Schedules';
 import Notifications from './pages/Notifications';
 import Audit from './pages/Audit';
 import Network from './pages/Network';
+import Deployment from './pages/Deployment';
 
 function AppRoutes() {
   const [status, setStatus] = useState(null); // null = loading
@@ -60,6 +61,7 @@ function AppRoutes() {
         <Route path="notifications" element={<Notifications />} />
         <Route path="audit" element={<Audit />} />
         <Route path="network" element={<Network />} />
+        <Route path="deployment" element={<Deployment />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
