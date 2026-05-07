@@ -3,7 +3,9 @@ OrdererOrgs:
     Domain: example.com
     EnableNodeOUs: true
     Specs:
-      - Hostname: orderer
+      - Hostname: orderer1
+      - Hostname: orderer2
+      - Hostname: orderer3
 
 PeerOrgs:
   - Name: Org1

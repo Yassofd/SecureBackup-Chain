@@ -19,7 +19,7 @@ function buildConnectionProfile() {
     },
     channels: {
       [env.FABRIC.CHANNEL]: {
-        orderers: ['orderer.example.com'],
+        orderers: ['orderer1.example.com', 'orderer2.example.com', 'orderer3.example.com'],
         peers: {
           'peer0.org1.example.com': {
             endorsingPeer: true, chaincodeQuery: true,
@@ -36,10 +36,20 @@ function buildConnectionProfile() {
       },
     },
     orderers: {
-      'orderer.example.com': {
+      'orderer1.example.com': {
         url: 'grpcs://localhost:7050',
-        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer.example.com' },
+        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer1.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer1.example.com' },
+      },
+      'orderer2.example.com': {
+        url: 'grpcs://localhost:8050',
+        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer2.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer2.example.com' },
+      },
+      'orderer3.example.com': {
+        url: 'grpcs://localhost:9050',
+        tlsCACerts: { pem: read('ordererOrganizations/example.com/orderers/orderer3.example.com/tls/ca.crt') },
+        grpcOptions: { 'ssl-target-name-override': 'orderer3.example.com' },
       },
     },
     peers: {

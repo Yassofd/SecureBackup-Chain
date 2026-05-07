@@ -6,7 +6,6 @@ NETWORK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$NETWORK_DIR"
 
-ORDERER_CA="$NETWORK_DIR/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt"
 PEER_TLS_CA="$NETWORK_DIR/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt"
 ADMIN_MSP="$NETWORK_DIR/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp"
 
@@ -20,13 +19,13 @@ FABRIC_TOOLS_COMMON="\
   -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp \
   -e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt"
 
-ORDERER_TLS="--tls --cafile /etc/hyperledger/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt"
+ORDERER_TLS="--tls --cafile /etc/hyperledger/crypto-config/ordererOrganizations/example.com/orderers/orderer1.example.com/tls/ca.crt"
 
 echo "→ Création du channel backupchannel..."
 docker run --rm $FABRIC_TOOLS_COMMON \
   hyperledger/fabric-tools:2.5.4 \
   peer channel create \
-    -o orderer.example.com:7050 \
+    -o orderer1.example.com:7050 \
     -c backupchannel \
     -f /etc/hyperledger/channel-artifacts/channel.tx \
     $ORDERER_TLS \
@@ -42,7 +41,7 @@ echo "→ Mise à jour de l'anchor peer..."
 docker run --rm $FABRIC_TOOLS_COMMON \
   hyperledger/fabric-tools:2.5.4 \
   peer channel update \
-    -o orderer.example.com:7050 \
+    -o orderer1.example.com:7050 \
     -c backupchannel \
     -f /etc/hyperledger/channel-artifacts/Org1MSPanchors.tx \
     $ORDERER_TLS

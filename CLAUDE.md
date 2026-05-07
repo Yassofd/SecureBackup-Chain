@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 12
-- **Dernière phase complétée** : Phase 11 — Vue topologique et monitoring
-- **Prochaine action** : voir docs/phases/phase-12.md
+- **Phase en cours** : Phase 13
+- **Dernière phase complétée** : Phase 12 — Cluster Raft 3 orderers
+- **Prochaine action** : voir docs/phases/phase-13.md
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

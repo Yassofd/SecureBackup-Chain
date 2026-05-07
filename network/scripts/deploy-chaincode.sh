@@ -24,11 +24,10 @@ PEER_CLI="docker run --rm \
   -e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
   hyperledger/fabric-tools:2.5.4"
 
-ORDERER_FLAGS="--orderer orderer.example.com:7050 --tls \
-  --cafile /etc/hyperledger/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt"
+ORDERER_FLAGS="--orderer orderer1.example.com:7050 --tls \
+  --cafile /etc/hyperledger/crypto-config/ordererOrganizations/example.com/orderers/orderer1.example.com/tls/ca.crt"
 
 echo "→ [1/6] Création du package CCaaS $CC_NAME v$CC_VERSION..."
-# Le package CCaaS est créé manuellement (fabric-tools ne supporte pas --lang ccaas)
 META_JSON='{"type":"ccaas","label":"'"${CC_NAME}_${CC_VERSION}"'"}'
 echo "$META_JSON" > /tmp/cc_metadata.json
 tar -czf /tmp/cc_code.tar.gz -C "$CCAAS_DIR" connection.json

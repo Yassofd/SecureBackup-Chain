@@ -8,12 +8,14 @@ const prisma = new PrismaClient();
 
 // Conteneurs Fabric/IPFS à surveiller avec leur type et organisation
 const WATCHED_CONTAINERS = [
-  { name: 'orderer.example.com', type: 'orderer',  org: 'OrdererOrg', port: 7050 },
-  { name: 'peer0.org1.example.com', type: 'peer',  org: 'Org1MSP',    port: 7051 },
-  { name: 'ca.org1.example.com',    type: 'ca',    org: 'Org1MSP',    port: 7054 },
-  { name: 'couchdb0',               type: 'couchdb',org: 'Org1MSP',   port: 5984 },
-  { name: 'ipfs0',                  type: 'ipfs',  org: null,         port: 5001 },
-  { name: 'backup-cc',              type: 'chaincode', org: 'Org1MSP', port: null },
+  { name: 'orderer1.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 7050 },
+  { name: 'orderer2.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 8050 },
+  { name: 'orderer3.example.com',   type: 'orderer',  org: 'OrdererOrg', port: 9050 },
+  { name: 'peer0.org1.example.com', type: 'peer',     org: 'Org1MSP',    port: 7051 },
+  { name: 'ca.org1.example.com',    type: 'ca',       org: 'Org1MSP',    port: 7054 },
+  { name: 'couchdb0',               type: 'couchdb',  org: 'Org1MSP',    port: 5984 },
+  { name: 'ipfs0',                  type: 'ipfs',     org: null,         port: 5001 },
+  { name: 'backup-cc',              type: 'chaincode', org: 'Org1MSP',   port: null },
 ];
 
 let intervalHandle = null;
@@ -65,11 +67,25 @@ async function getContainerMetrics(containerName) {
   }
 }
 
-function detectLeader(nodes) {
-  // Dans un réseau Fabric à un seul orderer, c'est lui le leader Raft par défaut
+async function detectLeader(nodes) {
+  // Interroge les logs de chaque orderer pour identifier le leader Raft actuel
   nodes.forEach((n) => { n.isLeader = false; });
-  const orderer = nodes.find((n) => n.type === 'orderer' && n.status === 'online');
-  if (orderer) orderer.isLeader = true;
+  const orderers = nodes.filter((n) => n.type === 'orderer' && n.status === 'online');
+  for (const ord of orderers) {
+    try {
+      const container = docker.getContainer(ord.name);
+      const logs = await container.logs({ stdout: true, stderr: true, tail: 50 });
+      const text = logs.toString('utf8');
+      if (text.includes('became leader') || text.includes('Raft leader changed: 0 ->')) {
+        ord.isLeader = true;
+        break;
+      }
+    } catch (_) {}
+  }
+  // Fallback : si aucun leader détecté, marquer le premier orderer en ligne
+  if (!orderers.some((n) => n.isLeader) && orderers.length > 0) {
+    orderers[0].isLeader = true;
+  }
 }
 
 async function collect() {
@@ -81,7 +97,7 @@ async function collect() {
       }),
     );
 
-    detectLeader(snapshots);
+    await detectLeader(snapshots);
 
     for (const snap of snapshots) {
       const prev = prevStatus[snap.name];
