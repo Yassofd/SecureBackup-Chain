@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Shield, HardDrive, CheckCircle, LayoutDashboard, LogOut, Server, CloudUpload } from 'lucide-react';
+import { Shield, HardDrive, CheckCircle, LayoutDashboard, LogOut, Server, CloudUpload, CalendarClock } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/backups', label: 'Sauvegardes', icon: HardDrive },
   { to: '/remote-backup', label: 'Sauvegarde distante', icon: CloudUpload },
   { to: '/ssh-servers', label: 'Serveurs SSH', icon: Server },
+  { to: '/schedules', label: 'Planifications', icon: CalendarClock },
   { to: '/verify', label: 'Vérifier', icon: CheckCircle },
 ];
 

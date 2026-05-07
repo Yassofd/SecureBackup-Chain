@@ -8,6 +8,7 @@ const setupRouter = require('./routes/setup');
 const authRouter = require('./routes/auth');
 const backupsRouter = require('./routes/backups');
 const sshServersRouter = require('./routes/ssh-servers');
+const schedulesRouter = require('./routes/schedules');
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use(requireInitialized);
 app.use('/api/auth', authRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/ssh-servers', sshServersRouter);
+app.use('/api/schedules', schedulesRouter);
 
 app.use(errorHandler);
 

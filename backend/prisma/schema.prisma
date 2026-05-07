@@ -20,6 +20,7 @@ model User {
   refreshTokens    RefreshToken[]
   backupOwnerships BackupOwnership[]
   sshServers       SshServer[]
+  scheduledBackups ScheduledBackup[]
 
   @@map("users")
 }
@@ -57,7 +58,44 @@ model SshServer {
   owner                User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt            DateTime @default(now()) @map("created_at")
 
+  scheduledBackups     ScheduledBackup[]
+
   @@map("ssh_servers")
+}
+
+model ScheduledBackup {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @db.VarChar(255)
+  sshServerId    String?   @map("ssh_server_id") @db.Uuid
+  sshServer      SshServer? @relation(fields: [sshServerId], references: [id], onDelete: SetNull)
+  remotePath     String    @map("remote_path")
+  cronExpression String    @map("cron_expression") @db.VarChar(100)
+  retentionDays  Int       @default(30) @map("retention_days")
+  retentionCount Int?      @map("retention_count")
+  status         String    @default("active") @db.VarChar(20)
+  lastRun        DateTime? @map("last_run")
+  nextRun        DateTime? @map("next_run")
+  lastStatus     String?   @map("last_status") @db.VarChar(20)
+  ownerId        String?   @map("owner_id") @db.Uuid
+  owner          User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  runs           ScheduledBackupRun[]
+
+  @@map("scheduled_backups")
+}
+
+model ScheduledBackupRun {
+  id           String    @id @default(uuid()) @db.Uuid
+  scheduleId   String    @map("schedule_id") @db.Uuid
+  schedule     ScheduledBackup @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  status       String?   @db.VarChar(20)
+  backupId     String?   @map("backup_id") @db.VarChar(100)
+  errorMessage String?   @map("error_message")
+
+  @@map("scheduled_backup_runs")
 }
 
 enum Role {

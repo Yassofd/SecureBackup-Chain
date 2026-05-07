@@ -5,8 +5,10 @@ const logger = require('./utils/logger');
 
 const PORT = env.PORT;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   logger.info(`API démarrée sur le port ${PORT}`, { env: env.NODE_ENV });
+  const scheduler = require('./services/scheduler');
+  await scheduler.loadAll();
 });
 
 process.on('SIGTERM', () => {
