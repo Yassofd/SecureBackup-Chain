@@ -10,9 +10,9 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 14
-- **Dernière phase complétée** : Phase 13 — Déploiement multi-machines (docker-compose par nœud, setup-wizard.sh, SSE connectivity, page Déploiement)
-- **Prochaine action** : voir docs/phases/phase-14.md
+- **Phase en cours** : Phase 16
+- **Dernière phase complétée** : Phase 15 — Restauration vers serveur distant (endpoint restore-remote, modal BackupDetail, vérification espace disque, décompression tar.gz, audit Fabric)
+- **Prochaine action** : voir docs/phases/phase-16.md
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

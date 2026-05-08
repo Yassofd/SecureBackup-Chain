@@ -4,6 +4,7 @@ const multer = require('multer');
 const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const fabric = require('../services/fabric');
 const ipfs = require('../services/ipfs');
 const { sha256, encryptAES, decryptAES } = require('../services/crypto');
@@ -190,6 +191,119 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
       source: `${server.username}@${server.host}:${remotePath}`,
     });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  } finally {
+    if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
+  }
+});
+
+// POST /api/backups/:id/restore-remote — restaure vers un serveur SSH
+router.post('/:id/restore-remote', requireRole('admin', 'responsable'), async (req, res, next) => {
+  let tmpPath = null;
+  let ssh = null;
+  try {
+    const { ssh_server_id, destination_path, preserve_permissions = false, overwrite = false } = req.body;
+    if (!ssh_server_id || !destination_path) {
+      return res.status(400).json({ error: 'ssh_server_id et destination_path sont obligatoires' });
+    }
+
+    // 1. Métadonnées depuis Fabric
+    const entry = await fabric.evaluateTransaction('getBackup', req.params.id);
+
+    // 2. Vérification des droits
+    if (req.user.role === 'responsable') {
+      const own = await db.backupOwnership.findFirst({
+        where: { backupId: req.params.id, userId: req.user.sub },
+      });
+      if (!own) return res.status(403).json({ error: 'Accès refusé' });
+    }
+
+    // 3. Credentials SSH
+    const server = await db.sshServer.findUnique({ where: { id: ssh_server_id } });
+    if (!server) return res.status(404).json({ error: 'Serveur SSH non trouvé' });
+    if (req.user.role !== 'admin' && server.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: 'Accès refusé au serveur SSH' });
+    }
+    const credentials = JSON.parse(decryptCred(server.encryptedCredentials));
+
+    // 4. Téléchargement IPFS + déchiffrement
+    const encrypted = await ipfs.cat(entry.cid);
+    const decrypted = decryptAES(encrypted, env.MASTER_KEY);
+
+    // 5. Vérification intégrité
+    const computedHash = sha256(decrypted);
+    if (computedHash !== entry.fileHash) {
+      return res.status(422).json({ error: 'Intégrité compromise : le hash ne correspond pas' });
+    }
+
+    // 6. Connexion SSH
+    ssh = await sshService.connect({
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      auth_type: server.authType,
+      credentials,
+    });
+
+    // 7. Espace disque
+    const availableBytes = await sshService.checkDiskSpace(ssh, '/');
+    if (availableBytes < decrypted.length * 1.2) {
+      return res.status(507).json({
+        error: `Espace insuffisant : ${(availableBytes / 1024 / 1024).toFixed(1)} Mo disponibles, ${(decrypted.length / 1024 / 1024).toFixed(1)} Mo requis`,
+      });
+    }
+
+    // 8. Chemin de destination du fichier
+    const destDir = destination_path.replace(/\/$/, '');
+    const destFilePath = `${destDir}/${entry.fileName}`;
+
+    // 9. Vérification fichier existant
+    const fileExists = await sshService.remoteFileExists(ssh, destFilePath);
+    if (fileExists && !overwrite) {
+      return res.status(409).json({ error: 'Le fichier existe déjà à destination', fileExists: true, path: destFilePath });
+    }
+
+    // 10. Création du répertoire destination
+    await sshService.mkdirRemote(ssh, destDir);
+
+    // 11. Écriture locale temporaire + transfert SFTP
+    tmpPath = path.join(os.tmpdir(), `restore_${Date.now()}_${entry.fileName}`);
+    fs.writeFileSync(tmpPath, decrypted);
+    await sshService.pushFile(ssh, tmpPath, destFilePath);
+
+    // 12. Si tar.gz : décompression distante
+    const isTar = entry.fileName.endsWith('.tar.gz') || entry.mimeType === 'application/gzip';
+    if (isTar) {
+      const tarFlags = preserve_permissions ? '-xzpf' : '-xzf';
+      await sshService.executeCommand(ssh, `tar ${tarFlags} "${destFilePath}" -C "${destDir}" && rm -f "${destFilePath}"`);
+    }
+
+    await sshService.closeConnection(ssh);
+    ssh = null;
+
+    // 13. Audit Fabric
+    await fabric.submitTransaction(
+      'recordAuditEntry',
+      'restore_remote',
+      req.params.id,
+      JSON.stringify({ destination: `${server.username}@${server.host}:${destFilePath}`, userId: req.user.sub }),
+    );
+
+    // 14. Notification
+    notify(req.user.sub, 'restore_success', 'Restauration terminée',
+      `Fichier "${entry.fileName}" restauré vers ${server.username}@${server.host}:${destFilePath}`);
+
+    res.json({
+      ok: true,
+      destination: `${server.username}@${server.host}:${destFilePath}`,
+      fileName: entry.fileName,
+      size: decrypted.length,
+      decompressed: isTar,
+    });
+  } catch (err) {
+    if (err.message?.includes('introuvable')) return res.status(404).json({ error: err.message });
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   } finally {

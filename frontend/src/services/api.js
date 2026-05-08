@@ -58,7 +58,13 @@ export const backupsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
   download: (id) => api.get(`/backups/${id}/download`, { responseType: 'blob' }),
+  restoreRemote: (id, data) => api.post(`/backups/${id}/restore-remote`, data),
   health: () => api.get('/health'),
+};
+
+export const sshServersApi = {
+  list: () => api.get('/ssh-servers'),
+  test: (id) => api.post(`/ssh-servers/${id}/test`),
 };
 
 export const notificationsApi = {

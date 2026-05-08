@@ -118,6 +118,22 @@ async function remoteHash(ssh, remotePath) {
   return executeCommand(ssh, hashCmd);
 }
 
+async function checkDiskSpace(ssh, dirPath) {
+  const out = await executeCommand(ssh, `df -PB1 "${dirPath}" 2>/dev/null || df -PB1 /`);
+  const dataLine = out.split('\n').find((l) => !l.startsWith('Filesystem'));
+  if (!dataLine) throw new Error("Impossible de lire l'espace disque");
+  return parseInt(dataLine.split(/\s+/)[3], 10);
+}
+
+async function remoteFileExists(ssh, remotePath) {
+  const result = await ssh.execCommand(`test -e "${remotePath}" && echo yes || echo no`);
+  return result.stdout.trim() === 'yes';
+}
+
+async function mkdirRemote(ssh, remotePath) {
+  await executeCommand(ssh, `mkdir -p "${remotePath}"`);
+}
+
 module.exports = {
   testConnection,
   connect,
@@ -128,4 +144,7 @@ module.exports = {
   fetchFile,
   fetchDirectory,
   pushFile,
+  checkDiskSpace,
+  remoteFileExists,
+  mkdirRemote,
 };
