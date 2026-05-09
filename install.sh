@@ -104,10 +104,29 @@ log "Port : $HTTP_PORT"
 # ── [2] Génération des secrets ───────────────────────────────────────────────
 step "2/7" "Génération des clés de sécurité"
 
-JWT_SECRET=$(openssl rand -hex 32)
-JWT_REFRESH_SECRET=$(openssl rand -hex 32)
-MASTER_KEY=$(openssl rand -hex 32)
-CLUSTER_SECRET=$(openssl rand -hex 32)
+# Si un .env existe déjà, réutiliser les secrets existants (évite le désync DB)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  warn "Fichier .env existant détecté — réutilisation des secrets (pour conserver les données)"
+  # Charger les valeurs existantes
+  _get() { grep "^$1=" "$SCRIPT_DIR/.env" | cut -d= -f2- | head -1; }
+  DB_PASSWORD=$(_get DB_PASSWORD)
+  JWT_SECRET=$(_get JWT_SECRET)
+  JWT_REFRESH_SECRET=$(_get JWT_REFRESH_SECRET)
+  MASTER_KEY=$(_get MASTER_KEY)
+  CLUSTER_SECRET=$(_get CLUSTER_SECRET)
+  # Régénérer seulement les valeurs manquantes
+  [ -z "$DB_PASSWORD" ]          && DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+  [ -z "$JWT_SECRET" ]           && JWT_SECRET=$(openssl rand -hex 32)
+  [ -z "$JWT_REFRESH_SECRET" ]   && JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+  [ -z "$MASTER_KEY" ]           && MASTER_KEY=$(openssl rand -hex 32)
+  [ -z "$CLUSTER_SECRET" ]       && CLUSTER_SECRET=$(openssl rand -hex 32)
+  log "Secrets existants conservés"
+else
+  JWT_SECRET=$(openssl rand -hex 32)
+  JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+  MASTER_KEY=$(openssl rand -hex 32)
+  CLUSTER_SECRET=$(openssl rand -hex 32)
+fi
 
 # Écriture du fichier .env
 cat > "$SCRIPT_DIR/.env" <<EOF
