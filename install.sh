@@ -206,9 +206,16 @@ cd "$SCRIPT_DIR"
 mkdir -p "$SCRIPT_DIR/backend/config"
 touch "$SCRIPT_DIR/backend/config/initialized.json"
 
-docker compose pull --ignore-pull-failures 2>/dev/null | grep -E "Pulling|pulled|up to date" | sed 's/^/     /' || true
-docker compose build --quiet 2>&1 | tail -5 | sed 's/^/     /'
-docker compose up -d --remove-orphans 2>&1 | grep -E "Starting|Started|Created|Running|Healthy" | sed 's/^/     /'
+docker compose pull --ignore-pull-failures 2>&1 | sed 's/^/     /' || true
+
+info "Construction des images Docker..."
+if ! docker compose build 2>&1 | sed 's/^/     /'; then
+  error "La construction des images a échoué — voir les erreurs ci-dessus"
+  exit 1
+fi
+
+info "Démarrage des conteneurs..."
+docker compose up -d --remove-orphans 2>&1 | sed 's/^/     /' || true
 
 log "Conteneurs démarrés"
 
