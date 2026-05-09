@@ -225,8 +225,10 @@ info "Patientez pendant le démarrage de la blockchain (30-60 secondes)..."
 
 MAX_WAIT=120
 ELAPSED=0
+API_BASE="http://localhost:${HTTP_PORT:-80}/api"
+
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-  STATUS=$(curl -s "http://localhost:3000/api/health" 2>/dev/null || echo "")
+  STATUS=$(curl -s "$API_BASE/health" 2>/dev/null || echo "")
   if echo "$STATUS" | grep -q '"fabric":"ok"'; then
     break
   fi
@@ -245,12 +247,9 @@ fi
 step "6/7" "Initialisation du réseau Fabric"
 info "Création du canal et déploiement du contrat intelligent..."
 
-# Utilise init-network.sh via le backend pour éviter d'avoir les binaires localement
-# Le backend expose GET /api/deployment/init-network/stream (SSE)
-# On attend que le backend soit prêt pour l'initialisation
 BACKEND_READY=false
 for i in $(seq 1 30); do
-  if curl -s http://localhost:3000/api/health >/dev/null 2>&1; then
+  if curl -s "$API_BASE/health" >/dev/null 2>&1; then
     BACKEND_READY=true
     break
   fi
@@ -258,12 +257,12 @@ for i in $(seq 1 30); do
 done
 
 if $BACKEND_READY; then
-  # Créer le compte admin d'abord (POST /api/setup/initialize)
-  INIT_RESPONSE=$(curl -s -X POST "http://localhost:3000/api/setup/initialize" \
+  # Créer le compte admin (POST /api/setup/initialize via nginx)
+  INIT_RESPONSE=$(curl -s -X POST "$API_BASE/setup/initialize" \
     -H "Content-Type: application/json" \
     -d "{
       \"organization\": {\"name\": \"$ORG_NAME\", \"domain\": \"securebackup.local\"},
-      \"server\": {\"host\": \"localhost\", \"port\": 80},
+      \"server\": {\"host\": \"localhost\", \"port\": ${HTTP_PORT:-80}},
       \"admin\": {\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASSWORD\"}
     }" 2>/dev/null)
 
@@ -277,18 +276,16 @@ if $BACKEND_READY; then
   fi
 
   # Lancer init-network via le backend SSE (si pas encore fait)
-  STATUS_HEALTH=$(curl -s "http://localhost:3000/api/health" 2>/dev/null || echo "")
+  STATUS_HEALTH=$(curl -s "$API_BASE/health" 2>/dev/null || echo "")
   if ! echo "$STATUS_HEALTH" | grep -q '"fabric":"ok"'; then
     info "Lancement de l'initialisation Fabric (cela prend 2-3 minutes)..."
-    # Login pour obtenir le token
-    LOGIN_RESP=$(curl -s -X POST "http://localhost:3000/api/auth/login" \
+    LOGIN_RESP=$(curl -s -X POST "$API_BASE/auth/login" \
       -H "Content-Type: application/json" \
       -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" 2>/dev/null)
     TOKEN=$(echo "$LOGIN_RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
 
     if [ -n "$TOKEN" ]; then
-      # Appel SSE — on attend la fin via timeout
-      curl -s -N "http://localhost:3000/api/deployment/init-network/stream" \
+      curl -s -N "$API_BASE/deployment/init-network/stream" \
         -H "Authorization: Bearer $TOKEN" \
         --max-time 300 2>/dev/null | \
         grep -E "STEP:|OK:|DONE:|ERROR:" | sed 's/^data://; s/^/     /' &

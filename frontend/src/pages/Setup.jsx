@@ -234,6 +234,7 @@ function Step3({ data, setData, onNext, onBack }) {
 function Step4({ org, server, admin, onBack, onNext }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+  const navigate = useNavigate();
 
   const initialize = async () => {
     setLoading(true); setError('');
@@ -251,7 +252,12 @@ function Step4({ org, server, admin, onBack, onNext }) {
       URL.revokeObjectURL(url);
       onNext();
     } catch (err) {
-      setError(err.response?.data?.error || "Erreur lors de l'initialisation");
+      const msg = err.response?.data?.error || "Erreur lors de l'initialisation";
+      if (msg === 'Système déjà initialisé') {
+        navigate('/login', { replace: true });
+      } else {
+        setError(msg);
+      }
     }
     setLoading(false);
   };
@@ -453,6 +459,13 @@ export default function Setup() {
   const [org,    setOrg]    = useState({ name: '', legalStatus: 'SA', address: '', postalCode: '', city: '', country: 'France', phone: '', email: '', sector: 'Technologie', taxId: '' });
   const [server, setServer] = useState({ host: '', fabricPort: '7050', ipfsPort: '5001', apiPort: '3000' });
   const [admin,  setAdmin]  = useState({ email: '', password: '', confirm: '' });
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    axios.get('/api/setup/status').then(({ data }) => {
+      if (data.initialized) navigate('/login', { replace: true });
+    }).catch(() => {});
+  }, []);
 
   const next = () => setStep(s => s + 1);
   const back = () => setStep(s => s - 1);
