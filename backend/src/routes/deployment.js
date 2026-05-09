@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 const { spawn } = require('child_process');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');
