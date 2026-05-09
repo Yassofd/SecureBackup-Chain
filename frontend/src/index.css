@@ -1,3 +1,101 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body { @apply bg-ink-900 text-ink-50; }
+
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-ink-500 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-ink-400; }
+}
+
+@layer components {
+
+  /* ── Cards / Panels ──────────────────────────────────────────────────────── */
+  .card {
+    @apply bg-ink-700 border border-ink-500 rounded-xl;
+  }
+
+  /* Panel = card with a distinct header zone (InfluxDB "cell" style) */
+  .panel { @apply bg-ink-700 border border-ink-500 rounded-xl overflow-hidden; }
+  .panel-header {
+    @apply bg-ink-800 border-b border-ink-500 px-5 py-3.5
+           flex items-center justify-between;
+  }
+  .panel-title { @apply text-sm font-semibold text-ink-50 tracking-tight; }
+  .panel-body  { @apply p-5; }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5
+           bg-brand text-white px-4 py-2 rounded-lg
+           text-sm font-semibold tracking-tight
+           hover:bg-brand-400 active:bg-brand-600
+           disabled:opacity-40 disabled:cursor-not-allowed
+           transition-colors;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5
+           text-ink-200 hover:text-ink-50 hover:bg-ink-550
+           px-3 py-2 rounded-lg text-sm font-medium
+           disabled:opacity-40 transition-colors;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-1.5
+           border border-ink-400 text-ink-200
+           hover:border-brand hover:text-brand
+           px-4 py-2 rounded-lg text-sm font-medium
+           disabled:opacity-40 transition-colors;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5
+           bg-red-500/10 text-red-400 border border-red-500/20
+           px-4 py-2 rounded-lg text-sm font-medium
+           hover:bg-red-500/20 transition-colors;
+  }
+
+  /* ── Form controls ──────────────────────────────────────────────────────── */
+  .input {
+    @apply w-full bg-ink-600 border border-ink-500 rounded-lg
+           px-3 py-2 text-sm text-ink-50
+           placeholder:text-ink-300
+           focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/25
+           transition-colors;
+  }
+  .label {
+    @apply block text-xs font-medium text-ink-200 mb-1.5 uppercase tracking-wide;
+  }
+
+  /* ── Badges ─────────────────────────────────────────────────────────────── */
+  .badge-green  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20; }
+  .badge-red    { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-500/15    text-red-400    border border-red-500/20;     }
+  .badge-amber  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15  text-amber-400  border border-amber-500/20;   }
+  .badge-blue   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-brand/15      text-brand      border border-brand/20;        }
+  .badge-purple { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/15 text-purple-400 border border-purple-500/20; }
+
+  /* ── Page layout ─────────────────────────────────────────────────────────── */
+  .page-header { @apply mb-6 flex items-start justify-between; }
+  .page-title  { @apply text-[22px] font-bold text-ink-50 tracking-tight leading-tight; }
+  .page-sub    { @apply text-sm text-ink-300 mt-1; }
+
+  /* ── Tables ─────────────────────────────────────────────────────────────── */
+  .th {
+    @apply text-left text-[10px] font-semibold text-ink-300
+           uppercase tracking-widest pb-3 px-4
+           bg-ink-800/60;
+  }
+  .td { @apply py-3 px-4 text-sm; }
+
+  /* ── Misc ────────────────────────────────────────────────────────────────── */
+  .divider { @apply border-t border-ink-500; }
+  .section-title {
+    @apply text-[10px] font-semibold text-ink-400 uppercase tracking-widest mb-2 px-4;
+  }
+}

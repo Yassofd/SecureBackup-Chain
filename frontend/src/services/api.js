@@ -87,4 +87,9 @@ export const networkApi = {
   logs:     (id, lines = 50) => api.get(`/network/nodes/${id}/logs`, { params: { lines } }),
 };
 
+export const deploymentApi = {
+  listNodes:  ()   => api.get('/deployment/nodes'),
+  deleteNode: (id) => api.delete(`/deployment/nodes/${id}`),
+};
+
 export default api;

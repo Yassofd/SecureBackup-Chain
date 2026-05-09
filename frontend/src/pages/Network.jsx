@@ -1,59 +1,38 @@
 import { useState, useEffect, useCallback } from 'react';
-import ReactFlow, {
-  Background,
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-} from 'reactflow';
+import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import {
-  Server, Star, Wifi, WifiOff, AlertTriangle, RefreshCw, Loader2,
-  X, ChevronDown, ChevronUp,
-} from 'lucide-react';
+import { Server, Star, Wifi, WifiOff, AlertTriangle, RefreshCw, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import { networkApi } from '../services/api';
 
-// ─── Couleurs par statut ──────────────────────────────────────────────────────
 const STATUS = {
-  online:  { border: '#22c55e', bg: '#f0fdf4', text: 'text-green-600', label: 'En ligne',    icon: Wifi },
-  degraded:{ border: '#f59e0b', bg: '#fffbeb', text: 'text-amber-600',  label: 'Dégradé',    icon: AlertTriangle },
-  offline: { border: '#ef4444', bg: '#fef2f2', text: 'text-red-600',    label: 'Hors ligne', icon: WifiOff },
-  unknown: { border: '#94a3b8', bg: '#f8fafc', text: 'text-slate-400',  label: 'Inconnu',    icon: Server },
+  online:  { border: '#00b4d8', bg: '#00b4d815', text: 'text-brand',    label: 'En ligne',    icon: Wifi },
+  degraded:{ border: '#f59e0b', bg: '#f59e0b15', text: 'text-amber-400', label: 'Dégradé',    icon: AlertTriangle },
+  offline: { border: '#ef4444', bg: '#ef444415', text: 'text-red-400',   label: 'Hors ligne', icon: WifiOff },
+  unknown: { border: '#3d3d6a', bg: '#1c1c2e',   text: 'text-ink-300',  label: 'Inconnu',    icon: Server },
 };
 
-const TYPE_LABELS = {
-  orderer:   'Orderer',
-  peer:      'Peer',
-  ca:        'CA',
-  couchdb:   'CouchDB',
-  ipfs:      'IPFS',
-  chaincode: 'Chaincode',
-};
+const TYPE_LABELS = { orderer: 'Orderer', peer: 'Peer', ca: 'CA', couchdb: 'CouchDB', ipfs: 'IPFS', chaincode: 'Chaincode' };
+const COLUMN_ORDER = ['orderer', 'peer', 'ca', 'couchdb', 'ipfs', 'chaincode'];
 
-// ─── Nœud React-Flow personnalisé ────────────────────────────────────────────
 function CustomNode({ data }) {
   const s = STATUS[data.status] || STATUS.unknown;
   const Icon = s.icon;
   return (
     <div
-      style={{ borderColor: s.border, background: s.bg }}
-      className="rounded-xl border-2 px-4 py-3 shadow-sm min-w-[140px] cursor-pointer select-none"
+      style={{ borderColor: s.border, background: '#1c1c2e' }}
+      className="rounded-xl border-2 px-4 py-3 shadow-xl min-w-[140px] cursor-pointer select-none"
       onClick={data.onClick}
     >
       <div className="flex items-center gap-2">
-        <Icon size={14} className={s.text} />
-        <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{data.label}</span>
-        {data.isLeader && <Star size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
+        <Icon size={13} style={{ color: s.border }} />
+        <span className="text-xs font-bold text-ink-50 truncate max-w-[100px]">{data.label}</span>
+        {data.isLeader && <Star size={11} className="text-amber-400 fill-amber-400 shrink-0" />}
       </div>
-      <div className="mt-1">
-        <span className={clsx('text-[10px] font-medium', s.text)}>{s.label}</span>
-        {data.org && <span className="ml-2 text-[10px] text-slate-400">{data.org}</span>}
-      </div>
+      <span className={clsx('text-[10px] font-medium mt-0.5 block', s.text)}>{s.label}</span>
+      {data.org && <span className="text-[10px] text-ink-400 block">{data.org}</span>}
       {data.metrics?.cpuPercent !== undefined && (
-        <div className="mt-1 text-[10px] text-slate-400">
-          CPU {data.metrics.cpuPercent}% · {data.metrics.memMB} MB
-        </div>
+        <div className="mt-1 text-[10px] text-ink-400">CPU {data.metrics.cpuPercent}% · {data.metrics.memMB} MB</div>
       )}
     </div>
   );
@@ -61,31 +40,15 @@ function CustomNode({ data }) {
 
 const nodeTypes = { custom: CustomNode };
 
-// ─── Disposition automatique (colonnes par type) ──────────────────────────────
-const COLUMN_ORDER = ['orderer', 'peer', 'ca', 'couchdb', 'ipfs', 'chaincode'];
-
 function buildLayout(nodes) {
-  const cols = {};
-  COLUMN_ORDER.forEach((t, i) => { cols[t] = i; });
+  const cols = {}; COLUMN_ORDER.forEach((t, i) => { cols[t] = i; });
   const rowCount = {};
-
   return nodes.map((n) => {
     const col = cols[n.type] ?? COLUMN_ORDER.length;
     const row = rowCount[n.type] || 0;
     rowCount[n.type] = row + 1;
-    return {
-      id:   n.id,
-      type: 'custom',
-      position: { x: col * 180 + 40, y: row * 120 + 60 },
-      data: {
-        label:    n.name.split('.')[0],
-        status:   n.status,
-        isLeader: n.isLeader,
-        org:      n.organization,
-        metrics:  n.metrics,
-        onClick:  null, // sera injecté après
-      },
-    };
+    return { id: n.id, type: 'custom', position: { x: col * 180 + 40, y: row * 120 + 60 },
+      data: { label: n.name.split('.')[0], status: n.status, isLeader: n.isLeader, org: n.organization, metrics: n.metrics, onClick: null } };
   });
 }
 
@@ -95,21 +58,28 @@ function buildEdges(nodes) {
   const peers   = nodes.filter((n) => n.type === 'peer');
   const couchs  = nodes.filter((n) => n.type === 'couchdb');
   const ca      = nodes.find((n) => n.type === 'ca');
-
   peers.forEach((p, i) => {
-    if (orderer) edges.push({ id: `o-p${i}`, source: orderer.id, target: p.id, animated: orderer.status === 'online' && p.status === 'online' });
-    if (couchs[i]) edges.push({ id: `p-c${i}`, source: p.id, target: couchs[i].id });
-    if (ca) edges.push({ id: `ca-p${i}`, source: ca.id, target: p.id, style: { strokeDasharray: '4 2' } });
+    if (orderer) edges.push({ id: `o-p${i}`, source: orderer.id, target: p.id, style: { stroke: '#00b4d8', opacity: 0.6 }, animated: orderer.status === 'online' && p.status === 'online' });
+    if (couchs[i]) edges.push({ id: `p-c${i}`, source: p.id, target: couchs[i].id, style: { stroke: '#3d3d6a' } });
+    if (ca) edges.push({ id: `ca-p${i}`, source: ca.id, target: p.id, style: { stroke: '#3d3d6a', strokeDasharray: '4 2' } });
   });
   return edges;
 }
 
-// ─── Panneau latéral de détails ───────────────────────────────────────────────
-function SidePanel({ nodeId, nodeName, onClose }) {
-  const [detail, setDetail]   = useState(null);
-  const [logs, setLogs]       = useState('');
-  const [showLogs, setShowLogs] = useState(false);
-  const [loadingLogs, setLoadingLogs] = useState(false);
+function Row({ label, value }) {
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-ink-300 shrink-0 w-16 text-xs">{label}</span>
+      <span className="text-ink-100 break-all text-xs">{value}</span>
+    </div>
+  );
+}
+
+function SidePanel({ nodeId, onClose }) {
+  const [detail, setDetail]       = useState(null);
+  const [logs, setLogs]           = useState('');
+  const [showLogs, setShowLogs]   = useState(false);
+  const [loadingLogs, setLdLogs]  = useState(false);
 
   useEffect(() => {
     if (!nodeId) return;
@@ -117,22 +87,15 @@ function SidePanel({ nodeId, nodeName, onClose }) {
   }, [nodeId]);
 
   async function fetchLogs() {
-    setLoadingLogs(true);
-    try {
-      const { data } = await networkApi.logs(nodeId);
-      setLogs(data.logs);
-      setShowLogs(true);
-    } catch {
-      setLogs('[Erreur lors de la récupération des logs]');
-      setShowLogs(true);
-    } finally {
-      setLoadingLogs(false);
-    }
+    setLdLogs(true);
+    try { const { data } = await networkApi.logs(nodeId); setLogs(data.logs); setShowLogs(true); }
+    catch { setLogs('[Erreur lors de la récupération des logs]'); setShowLogs(true); }
+    finally { setLdLogs(false); }
   }
 
   if (!detail) return (
-    <div className="flex items-center justify-center h-full text-slate-400">
-      <Loader2 size={20} className="animate-spin" />
+    <div className="flex items-center justify-center h-full text-ink-300">
+      <Loader2 size={18} className="animate-spin" />
     </div>
   );
 
@@ -142,50 +105,28 @@ function SidePanel({ nodeId, nodeName, onClose }) {
   return (
     <div className="p-4 h-full overflow-y-auto text-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-slate-800 truncate">{detail.name}</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={16} /></button>
+        <h3 className="font-semibold text-ink-50 truncate text-sm">{detail.name}</h3>
+        <button onClick={onClose} className="p-1.5 text-ink-300 hover:text-ink-50 hover:bg-ink-600 rounded-lg transition-colors"><X size={14} /></button>
+      </div>
+      <div className="space-y-2.5">
+        <Row label="Type"   value={TYPE_LABELS[detail.type] || detail.type} />
+        <Row label="Org"    value={detail.organization || '—'} />
+        <Row label="Port"   value={detail.port || '—'} />
+        <Row label="Statut" value={<span className={clsx('flex items-center gap-1 font-medium text-xs', s.text)}><Icon size={11} />{s.label}</span>} />
+        {detail.isLeader && <Row label="Rôle" value={<span className="flex items-center gap-1 text-amber-400 text-xs"><Star size={10} className="fill-amber-400" /> Leader Raft</span>} />}
+        <Row label="Vu à"   value={detail.lastSeen ? new Date(detail.lastSeen).toLocaleString('fr-FR') : '—'} />
+        {detail.metrics?.cpuPercent !== undefined && <Row label="CPU" value={`${detail.metrics.cpuPercent} %`} />}
+        {detail.metrics?.memMB !== undefined && <Row label="RAM" value={`${detail.metrics.memMB} / ${detail.metrics.memLimitMB} MB`} />}
+        {detail.metrics?.image && <Row label="Image" value={<span className="font-mono text-[10px] break-all">{detail.metrics.image}</span>} />}
       </div>
 
-      <div className="space-y-3">
-        <Row label="Type"    value={TYPE_LABELS[detail.type] || detail.type} />
-        <Row label="Org"     value={detail.organization || '—'} />
-        <Row label="Port"    value={detail.port || '—'} />
-        <Row label="Statut"  value={
-          <span className={clsx('flex items-center gap-1 font-medium', s.text)}>
-            <Icon size={12} /> {s.label}
-          </span>
-        } />
-        {detail.isLeader && (
-          <Row label="Rôle" value={<span className="flex items-center gap-1 text-amber-500"><Star size={12} className="fill-amber-400" /> Leader Raft</span>} />
-        )}
-        <Row label="Vu à" value={detail.lastSeen ? new Date(detail.lastSeen).toLocaleString('fr-FR') : '—'} />
-
-        {detail.metrics && (
-          <>
-            {detail.metrics.cpuPercent !== undefined && (
-              <Row label="CPU"    value={`${detail.metrics.cpuPercent} %`} />
-            )}
-            {detail.metrics.memMB !== undefined && (
-              <Row label="RAM"    value={`${detail.metrics.memMB} / ${detail.metrics.memLimitMB} MB`} />
-            )}
-            {detail.metrics.image && (
-              <Row label="Image"  value={<span className="font-mono text-xs break-all">{detail.metrics.image}</span>} />
-            )}
-          </>
-        )}
-      </div>
-
-      <button
-        onClick={showLogs ? () => setShowLogs(false) : fetchLogs}
-        disabled={loadingLogs}
-        className="mt-4 flex items-center gap-2 text-xs text-indigo-600 hover:underline disabled:opacity-50"
-      >
-        {loadingLogs ? <Loader2 size={12} className="animate-spin" /> : showLogs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      <button onClick={showLogs ? () => setShowLogs(false) : fetchLogs} disabled={loadingLogs}
+        className="mt-4 flex items-center gap-1.5 text-xs text-brand hover:text-brand-300 disabled:opacity-50 transition-colors">
+        {loadingLogs ? <Loader2 size={11} className="animate-spin" /> : showLogs ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         {showLogs ? 'Masquer les logs' : 'Afficher les logs'}
       </button>
-
       {showLogs && (
-        <pre className="mt-2 bg-slate-900 text-green-400 text-[10px] p-3 rounded-lg overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
+        <pre className="mt-2 bg-ink-900 text-emerald-400 text-[10px] p-3 rounded-lg overflow-x-auto max-h-64 whitespace-pre-wrap break-all border border-ink-600">
           {logs || '(aucun log)'}
         </pre>
       )}
@@ -193,147 +134,87 @@ function SidePanel({ nodeId, nodeName, onClose }) {
   );
 }
 
-function Row({ label, value }) {
-  return (
-    <div className="flex gap-2">
-      <span className="text-slate-400 shrink-0 w-16">{label}</span>
-      <span className="text-slate-700 break-all">{value}</span>
-    </div>
-  );
-}
-
-// ─── Page principale ──────────────────────────────────────────────────────────
 export default function Network() {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
-  const [health, setHealth]     = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null); // { id, name }
-  const [lastRefresh, setLastRefresh] = useState(null);
+  const [health, setHealth]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState(null);
+  const [lastRefresh, setLast]    = useState(null);
 
   const loadTopology = useCallback(async () => {
     try {
-      const [topoRes, healthRes] = await Promise.all([
-        networkApi.topology(),
-        networkApi.health(),
-      ]);
+      const [topoRes, healthRes] = await Promise.all([networkApi.topology(), networkApi.health()]);
       const nodes = topoRes.data.nodes;
       setHealth(healthRes.data);
-
       const layout = buildLayout(nodes);
       layout.forEach((n) => {
         const src = nodes.find((x) => x.id === n.id);
         n.data.onClick = () => setSelected({ id: src.id, name: src.name });
       });
-
-      setRfNodes(layout);
-      setRfEdges(buildEdges(nodes));
-      setLastRefresh(new Date());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      setRfNodes(layout); setRfEdges(buildEdges(nodes)); setLast(new Date());
+    } catch (_) {}
+    finally { setLoading(false); }
   }, []);
 
-  useEffect(() => {
-    loadTopology();
-    const iv = setInterval(loadTopology, 30_000);
-    return () => clearInterval(iv);
-  }, [loadTopology]);
+  useEffect(() => { loadTopology(); const iv = setInterval(loadTopology, 30_000); return () => clearInterval(iv); }, [loadTopology]);
 
-  const globalStatus = health?.status || 'unknown';
-  const STATUS_GLOBAL = {
-    healthy:  'text-green-600 bg-green-50 border-green-200',
-    degraded: 'text-amber-600 bg-amber-50 border-amber-200',
-    unknown:  'text-slate-500 bg-slate-50 border-slate-200',
-  };
+  const gs = health?.status || 'unknown';
+  const gsBadge = { healthy: 'badge-green', degraded: 'badge-amber', unknown: 'badge-blue' };
 
   return (
     <div className="flex h-full">
-      {/* Zone principale */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* En-tête */}
-        <div className="p-6 pb-0 flex items-center justify-between shrink-0">
+        <div className="px-7 py-5 flex items-center justify-between shrink-0 border-b border-ink-600">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Réseau</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Vue topologique en temps réel</p>
+            <h1 className="page-title">Réseau</h1>
+            <p className="page-sub">{lastRefresh ? `Mis à jour à ${lastRefresh.toLocaleTimeString('fr-FR')}` : 'Vue topologique en temps réel'}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {health && (
-              <div className={clsx('flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium', STATUS_GLOBAL[globalStatus])}>
-                <span className={clsx('w-2 h-2 rounded-full', globalStatus === 'healthy' ? 'bg-green-500' : globalStatus === 'degraded' ? 'bg-amber-400' : 'bg-slate-400')} />
-                {globalStatus === 'healthy' ? 'Réseau sain' : globalStatus === 'degraded' ? 'Réseau dégradé' : 'Inconnu'}
-                <span className="text-xs opacity-70 ml-1">({health.online}/{health.total})</span>
-              </div>
+              <span className={gsBadge[gs]}>
+                <span className={clsx('w-1.5 h-1.5 rounded-full mr-1.5', gs === 'healthy' ? 'bg-emerald-400' : gs === 'degraded' ? 'bg-amber-400' : 'bg-ink-300')} />
+                {gs === 'healthy' ? 'Réseau sain' : gs === 'degraded' ? 'Dégradé' : 'Inconnu'}
+                <span className="ml-1 opacity-70">({health.online}/{health.total})</span>
+              </span>
             )}
-            <button
-              onClick={loadTopology}
-              disabled={loading}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50"
-            >
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Actualiser
+            <button onClick={loadTopology} disabled={loading} className="btn-outline flex items-center gap-1.5">
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Actualiser
             </button>
           </div>
         </div>
 
-        {lastRefresh && (
-          <p className="px-6 pt-1 text-xs text-slate-400">
-            Dernière mise à jour : {lastRefresh.toLocaleTimeString('fr-FR')}
-          </p>
-        )}
-
-        {/* Graphe React-Flow */}
-        <div className="flex-1 m-4 mt-3 rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+        <div className="flex-1 m-4 rounded-xl border border-ink-600 overflow-hidden bg-ink-800">
           {loading && rfNodes.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-slate-400">
-              <Loader2 size={28} className="animate-spin" />
-            </div>
+            <div className="flex items-center justify-center h-full"><Loader2 size={24} className="animate-spin text-brand" /></div>
           ) : rfNodes.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-              <Server size={40} className="mx-auto mb-3 opacity-20" />
+            <div className="flex flex-col items-center justify-center h-full text-ink-400">
+              <Server size={36} className="mb-3 opacity-30" />
+              <p className="text-sm">Aucun nœud détecté</p>
             </div>
           ) : (
-            <ReactFlow
-              nodes={rfNodes}
-              edges={rfEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              fitView
-              fitViewOptions={{ padding: 0.3 }}
-              proOptions={{ hideAttribution: true }}
-            >
-              <Background gap={20} color="#e2e8f0" />
-              <Controls showInteractive={false} />
-              <MiniMap nodeColor={(n) => STATUS[n.data?.status]?.border || '#94a3b8'} pannable zoomable />
+            <ReactFlow nodes={rfNodes} edges={rfEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.3 }} proOptions={{ hideAttribution: true }}>
+              <Background gap={20} color="#2e2e4a" />
+              <Controls showInteractive={false} style={{ background: '#1c1c2e', border: '1px solid #2e2e4a', borderRadius: 8 }} />
+              <MiniMap style={{ background: '#13131f', border: '1px solid #2e2e4a' }} nodeColor={(n) => STATUS[n.data?.status]?.border || '#3d3d6a'} pannable zoomable />
             </ReactFlow>
           )}
         </div>
 
-        {/* Légende */}
-        <div className="px-6 pb-4 flex items-center gap-4 text-xs text-slate-500 shrink-0">
-          {Object.entries(STATUS).map(([key, val]) => (
-            <span key={key} className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: val.border }} />
+        <div className="px-7 pb-4 flex items-center gap-4 text-xs text-ink-300 shrink-0">
+          {Object.entries(STATUS).filter(([k]) => k !== 'unknown').map(([key, val]) => (
+            <span key={key} className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: val.border }} />
               {val.label}
             </span>
           ))}
-          <span className="flex items-center gap-1">
-            <Star size={11} className="fill-amber-400 text-amber-400" /> Leader Raft
-          </span>
         </div>
       </div>
 
-      {/* Panneau latéral */}
       {selected && (
-        <div className="w-72 border-l border-slate-200 bg-white shrink-0">
-          <SidePanel
-            nodeId={selected.id}
-            nodeName={selected.name}
-            onClose={() => setSelected(null)}
-          />
+        <div className="w-64 shrink-0 border-l border-ink-600 bg-ink-800 h-full overflow-hidden flex flex-col">
+          <SidePanel nodeId={selected.id} onClose={() => setSelected(null)} />
         </div>
       )}
     </div>

@@ -5,7 +5,10 @@ const { Gateway, Wallets, DefaultQueryHandlerStrategies } = require('fabric-netw
 const env = require('../../config/env');
 const logger = require('../utils/logger');
 
-const CRYPTO_BASE = path.resolve(__dirname, '../../../network/crypto-config');
+// Support Docker deployment via env vars (fallback to localhost for dev)
+const CRYPTO_BASE   = process.env.FABRIC_CRYPTO_PATH  || path.resolve(__dirname, '../../../network/crypto-config');
+const PEER_HOST     = process.env.FABRIC_PEER_HOST    || 'localhost';
+const ORDERER_HOST  = process.env.FABRIC_ORDERER_HOST || 'localhost';
 let gateway = null;
 
 function buildConnectionProfile() {
@@ -19,11 +22,9 @@ function buildConnectionProfile() {
     },
     channels: {
       [env.FABRIC.CHANNEL]: {
-        orderers: ['orderer.org1.example.com', 'orderer.org2.example.com', 'orderer.org3.example.com'],
+        orderers: ['orderer.org1.example.com'],
         peers: {
           'peer0.org1.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: true },
-          'peer0.org2.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: false },
-          'peer0.org3.example.com': { endorsingPeer: true, chaincodeQuery: true, ledgerQuery: true, eventSource: false },
         },
       },
     },
@@ -33,49 +34,19 @@ function buildConnectionProfile() {
         peers: ['peer0.org1.example.com'],
         certificateAuthorities: ['ca.org1.example.com'],
       },
-      Org2: {
-        mspid: 'Org2MSP',
-        peers: ['peer0.org2.example.com'],
-        certificateAuthorities: ['ca.org2.example.com'],
-      },
-      Org3: {
-        mspid: 'Org3MSP',
-        peers: ['peer0.org3.example.com'],
-        certificateAuthorities: ['ca.org3.example.com'],
-      },
     },
     orderers: {
       'orderer.org1.example.com': {
-        url: 'grpcs://localhost:7050',
+        url: `grpcs://${ORDERER_HOST}:7050`,
         tlsCACerts: { pem: read('ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/ca.crt') },
         grpcOptions: { 'ssl-target-name-override': 'orderer.org1.example.com' },
-      },
-      'orderer.org2.example.com': {
-        url: 'grpcs://localhost:8050',
-        tlsCACerts: { pem: read('ordererOrganizations/org2.example.com/orderers/orderer.org2.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer.org2.example.com' },
-      },
-      'orderer.org3.example.com': {
-        url: 'grpcs://localhost:9050',
-        tlsCACerts: { pem: read('ordererOrganizations/org3.example.com/orderers/orderer.org3.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'orderer.org3.example.com' },
       },
     },
     peers: {
       'peer0.org1.example.com': {
-        url: 'grpcs://localhost:7051',
+        url: `grpcs://${PEER_HOST}:7051`,
         tlsCACerts: { pem: read('peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt') },
         grpcOptions: { 'ssl-target-name-override': 'peer0.org1.example.com' },
-      },
-      'peer0.org2.example.com': {
-        url: 'grpcs://localhost:8051',
-        tlsCACerts: { pem: read('peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'peer0.org2.example.com' },
-      },
-      'peer0.org3.example.com': {
-        url: 'grpcs://localhost:9051',
-        tlsCACerts: { pem: read('peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt') },
-        grpcOptions: { 'ssl-target-name-override': 'peer0.org3.example.com' },
       },
     },
     certificateAuthorities: {
@@ -102,7 +73,7 @@ function buildConnectionProfile() {
 }
 
 async function getWallet() {
-  const walletPath = path.resolve(env.FABRIC.WALLET_PATH);
+  const walletPath = process.env.FABRIC_WALLET_ABS_PATH || path.resolve(env.FABRIC.WALLET_PATH);
   const wallet = await Wallets.newFileSystemWallet(walletPath);
 
   if (await wallet.get(env.FABRIC.ADMIN_USER)) return wallet;
@@ -131,7 +102,7 @@ async function getGateway() {
   await gateway.connect(buildConnectionProfile(), {
     wallet,
     identity: env.FABRIC.ADMIN_USER,
-    discovery: { enabled: true, asLocalhost: true },
+    discovery: { enabled: false, asLocalhost: true },
     eventHandlerOptions: { commitTimeout: 300 },
     queryHandlerOptions: { timeout: 60, strategy: DefaultQueryHandlerStrategies.PREFER_MSPID_SCOPE_SINGLE },
   });

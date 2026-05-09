@@ -10,9 +10,15 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Phase 16
-- **Dernière phase complétée** : Phase 15 — Restauration vers serveur distant (endpoint restore-remote, modal BackupDetail, vérification espace disque, décompression tar.gz, audit Fabric)
-- **Prochaine action** : voir docs/phases/phase-16.md
+- **Phase en cours** : Projet stable — toutes les 17 phases complétées ✅
+- **Dernière phase complétée** : Phase 17 — Finitions et durcissement production
+  - helmet + rate limiting (500 req/15min global, 20 req/15min auth) + gzip compression
+  - Logger Winston avec rotation quotidienne (logs/ — 30j app, 90j erreurs)
+  - Endpoints `/api/admin/export-config` et `/api/admin/import-config` (archive .tar.gz.enc AES-256-GCM)
+  - Snapshots automatiques quotidiens à 02:00 (pg_dump + `peer channel fetch`) → snapshots/
+  - Index PostgreSQL sur colonnes filtrées (user_id, created_at, status, expires_at)
+  - Connection profile Fabric limité à Org1, discovery désactivé, endorsement policy `OR('Org1MSP.member')`
+- **Prochaine action** : Projet en production — maintenance et ajout de nœuds si besoin
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

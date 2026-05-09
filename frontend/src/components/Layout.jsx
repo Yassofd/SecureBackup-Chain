@@ -8,103 +8,126 @@ import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { notificationsApi } from '../services/api';
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/backups', label: 'Sauvegardes', icon: HardDrive },
-  { to: '/remote-backup', label: 'Sauvegarde distante', icon: CloudUpload },
-  { to: '/ssh-servers', label: 'Serveurs SSH', icon: Server },
-  { to: '/schedules', label: 'Planifications', icon: CalendarClock },
-  { to: '/verify', label: 'Vérifier', icon: CheckCircle },
-  { to: '/audit', label: 'Audit', icon: ClipboardList },
-  { to: '/network', label: 'Réseau', icon: Network },
-  { to: '/deployment', label: 'Déploiement', icon: Boxes },
+const NAV_MAIN = [
+  { to: '/',            label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/backups',     label: 'Sauvegardes',    icon: HardDrive },
+  { to: '/remote-backup', label: 'Distante',     icon: CloudUpload },
+  { to: '/schedules',  label: 'Planifications',  icon: CalendarClock },
+  { to: '/verify',     label: 'Vérifier',        icon: CheckCircle },
+];
+const NAV_INFRA = [
+  { to: '/ssh-servers',  label: 'Serveurs SSH',  icon: Server },
+  { to: '/audit',        label: 'Audit',         icon: ClipboardList },
+  { to: '/network',      label: 'Réseau',        icon: Network },
+  { to: '/deployment',   label: 'Déploiement',   icon: Boxes },
 ];
 
+const roleLabel = { admin: 'Admin', responsable: 'Responsable', auditeur: 'Auditeur' };
 const roleBadge = {
-  admin:       'bg-red-500/20 text-red-300',
-  responsable: 'bg-blue-500/20 text-blue-300',
-  auditeur:    'bg-green-500/20 text-green-300',
+  admin:       'bg-red-500/15    text-red-400    border border-red-500/20',
+  responsable: 'bg-brand/15     text-brand      border border-brand/20',
+  auditeur:    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
 };
 
+/* ── Item sidebar ────────────────────────────────────────────────────────────── */
+function NavItem({ to, label, icon: Icon }) {
+  return (
+    <NavLink
+      to={to}
+      end={to === '/'}
+      className={({ isActive }) => clsx(
+        /* InfluxDB style : left 3px accent bar, full-width, no rounded corners */
+        'flex items-center gap-3 py-2.5 pr-4 text-[13px] font-medium transition-colors group',
+        'border-l-[3px]',
+        isActive
+          ? 'pl-[13px] border-brand bg-brand/[0.09] text-brand'
+          : 'pl-[13px] border-transparent text-ink-200 hover:text-ink-50 hover:bg-white/[0.04]',
+      )}
+    >
+      {({ isActive }) => (
+        <>
+          <Icon
+            size={15}
+            className={clsx(
+              'shrink-0 transition-colors',
+              isActive ? 'text-brand' : 'text-ink-400 group-hover:text-ink-200',
+            )}
+          />
+          <span>{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+/* ── Notification bell ───────────────────────────────────────────────────────── */
 function NotificationBell() {
-  const [unread, setUnread] = useState(0);
-  const [notifications, setNotifications] = useState([]);
-  const [open, setOpen] = useState(false);
+  const [unread, setUnread]      = useState(0);
+  const [notifications, setNot] = useState([]);
+  const [open, setOpen]          = useState(false);
   const ref = useRef(null);
 
   async function load() {
     try {
       const { data } = await notificationsApi.list();
       setUnread(data.unreadCount);
-      setNotifications(data.notifications.slice(0, 8));
+      setNot(data.notifications.slice(0, 8));
     } catch (_) {}
   }
 
+  useEffect(() => { load(); const iv = setInterval(load, 30_000); return () => clearInterval(iv); }, []);
   useEffect(() => {
-    load();
-    const iv = setInterval(load, 30000);
-    return () => clearInterval(iv);
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  async function markAll() {
-    await notificationsApi.markAllRead();
-    load();
-  }
+  async function markAll() { await notificationsApi.markAllRead(); load(); }
 
   const typeColor = {
-    backup_success: 'text-green-600',
-    schedule_success: 'text-green-600',
-    integrity_failure: 'text-red-600',
-    schedule_error: 'text-red-600',
+    backup_success:    'text-emerald-400',
+    schedule_success:  'text-emerald-400',
+    integrity_failure: 'text-red-400',
+    schedule_error:    'text-red-400',
   };
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => { setOpen((o) => !o); if (!open) load(); }}
-        className="relative p-1.5 text-slate-400 hover:text-white transition-colors"
+        className="relative p-2 text-ink-300 hover:text-ink-50 hover:bg-white/[0.06] rounded-lg transition-colors"
         title="Notifications"
       >
-        <Bell size={18} />
+        <Bell size={15} />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-            {unread > 9 ? '9+' : unread}
-          </span>
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
-            <span className="text-sm font-semibold text-slate-700">Notifications</span>
-            <div className="flex items-center gap-2">
+        <div className="absolute left-full ml-2 top-0 w-80 bg-ink-700 border border-ink-500 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-ink-500 bg-ink-800">
+            <span className="text-xs font-semibold text-ink-50 uppercase tracking-wide">Notifications</span>
+            <div className="flex items-center gap-3">
               {unread > 0 && (
-                <button onClick={markAll} className="text-xs text-indigo-500 hover:underline">
+                <button onClick={markAll} className="text-xs text-brand hover:text-brand-300 transition-colors">
                   Tout lire
                 </button>
               )}
-              <Link to="/notifications" onClick={() => setOpen(false)} className="text-xs text-slate-400 hover:text-slate-600">
-                Voir tout
+              <Link to="/notifications" onClick={() => setOpen(false)} className="text-xs text-ink-300 hover:text-ink-100 transition-colors">
+                Voir tout →
               </Link>
             </div>
           </div>
           {notifications.length === 0 ? (
-            <p className="text-slate-400 text-xs text-center py-6">Aucune notification</p>
+            <p className="text-ink-300 text-xs text-center py-8">Aucune notification</p>
           ) : (
             <ul>
               {notifications.map((n) => (
-                <li key={n.id} className={clsx('px-4 py-2.5 border-b border-slate-50 last:border-0', !n.read && 'bg-indigo-50/50')}>
-                  <p className={clsx('text-xs font-semibold', typeColor[n.type] || 'text-slate-700')}>{n.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                  <p className="text-[10px] text-slate-300 mt-0.5">{new Date(n.createdAt).toLocaleString('fr-FR')}</p>
+                <li key={n.id} className={clsx('px-4 py-3 border-b border-ink-600 last:border-0', !n.read && 'bg-brand/[0.04]')}>
+                  <p className={clsx('text-xs font-semibold', typeColor[n.type] || 'text-ink-50')}>{n.title}</p>
+                  <p className="text-xs text-ink-200 mt-0.5 line-clamp-2">{n.message}</p>
+                  <p className="text-[10px] text-ink-300 mt-1 font-mono">{new Date(n.createdAt).toLocaleString('fr-FR')}</p>
                 </li>
               ))}
             </ul>
@@ -115,62 +138,73 @@ function NotificationBell() {
   );
 }
 
+/* ── Layout principal ────────────────────────────────────────────────────────── */
 export default function Layout() {
   const { user, logout } = useAuth();
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <Shield className="text-indigo-400" size={22} />
-            <span className="font-bold text-lg tracking-tight">SecureBackup</span>
+    <div className="flex h-screen overflow-hidden bg-ink-900">
+
+      {/* ── Sidebar ───────────────────────────────────────────────────────────── */}
+      <aside className="w-[220px] bg-ink-950 flex flex-col shrink-0 border-r border-ink-700">
+
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-ink-700">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-brand/15 border border-brand/25 rounded-lg flex items-center justify-center shrink-0">
+              <Shield size={15} className="text-brand" />
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-ink-50 leading-none tracking-tight">SecureBackup</p>
+              <p className="text-[10px] text-ink-400 mt-0.5 font-mono tracking-wide">Chain Edition</p>
+            </div>
           </div>
-          <p className="text-slate-400 text-xs mt-1">Chain Edition</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                  isActive ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800',
-                )
-              }
-            >
-              <Icon size={16} />
-              {label}
-            </NavLink>
-          ))}
+        {/* Navigation — no x-padding on container so border-l spans full width */}
+        <nav className="flex-1 py-3 overflow-y-auto">
+          <p className="section-title mt-1 mb-1">Données</p>
+          {NAV_MAIN.map((item) => <NavItem key={item.to} {...item} />)}
+
+          <p className="section-title mt-4 mb-1">Infrastructure</p>
+          {NAV_INFRA.map((item) => <NavItem key={item.to} {...item} />)}
         </nav>
 
+        {/* User footer */}
         {user && (
-          <div className="p-4 border-t border-slate-700">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-slate-300 truncate max-w-[120px]">{user.email}</p>
-              <div className="flex items-center gap-1">
+          <div className="px-4 py-3 border-t border-ink-700">
+            <div className="flex items-center gap-2">
+              {/* Avatar */}
+              <div className="w-7 h-7 rounded-lg bg-brand/20 border border-brand/30 flex items-center justify-center shrink-0">
+                <span className="text-[11px] font-bold text-brand">
+                  {user.email?.[0]?.toUpperCase()}
+                </span>
+              </div>
+              {/* Info */}
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-ink-100 truncate font-medium">{user.email}</p>
+                <span className={clsx('text-[9px] px-1.5 py-px rounded font-semibold uppercase tracking-wide', roleBadge[user.role])}>
+                  {roleLabel[user.role]}
+                </span>
+              </div>
+              {/* Actions */}
+              <div className="flex items-center gap-0.5 shrink-0">
                 <NotificationBell />
                 <button
                   onClick={logout}
-                  className="text-slate-400 hover:text-white transition-colors"
+                  className="p-2 text-ink-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   title="Se déconnecter"
                 >
-                  <LogOut size={15} />
+                  <LogOut size={14} />
                 </button>
               </div>
             </div>
-            <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full', roleBadge[user.role])}>
-              {user.role}
-            </span>
           </div>
         )}
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
+      {/* ── Content ───────────────────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto bg-ink-900">
         <Outlet />
       </main>
     </div>

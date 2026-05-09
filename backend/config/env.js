@@ -1,5 +1,6 @@
 'use strict';
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -20,7 +21,8 @@ module.exports = {
     ADMIN_USER: process.env.FABRIC_ADMIN_USER || 'admin',
   },
   IPFS: {
-    API_URL: process.env.IPFS_API_URL || 'http://localhost:5001',
+    API_URL:     process.env.IPFS_API_URL     || 'http://localhost:5001',
     GATEWAY_URL: process.env.IPFS_GATEWAY_URL || 'http://localhost:8080',
+    CLUSTER_URL: process.env.IPFS_CLUSTER_URL || '',
   },
 };

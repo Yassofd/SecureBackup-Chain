@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { HardDrive, Shield, Activity, Wifi } from 'lucide-react';
+import { HardDrive, Shield, Activity, Wifi, RefreshCw } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import UploadZone from '../components/UploadZone';
 import BackupRow from '../components/BackupRow';
 import { backupsApi } from '../services/api';
 
 function formatSize(bytes) {
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
+  if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
 export default function Dashboard() {
   const [backups, setBackups] = useState([]);
-  const [health, setHealth] = useState(null);
+  const [health,  setHealth]  = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -20,9 +21,7 @@ export default function Dashboard() {
       const [bRes, hRes] = await Promise.allSettled([backupsApi.list(), backupsApi.health()]);
       if (bRes.status === 'fulfilled') setBackups(bRes.value.data);
       if (hRes.status === 'fulfilled') setHealth(hRes.value.data);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -31,37 +30,88 @@ export default function Dashboard() {
   const networkOk = health?.fabric === 'ok' && health?.ipfs === 'ok';
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+    <div className="p-7">
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Sauvegardes" value={loading ? '…' : backups.length} icon={HardDrive} color="indigo" />
-        <StatCard label="Stockage IPFS" value={loading ? '…' : formatSize(totalSize)} icon={Activity} color="blue" />
-        <StatCard label="Réseau" value={loading ? '…' : networkOk ? 'OK' : 'Erreur'} icon={Wifi} color={networkOk ? 'green' : 'amber'} sub="Fabric + IPFS" />
-        <StatCard label="Blockchain" value="backupchannel" icon={Shield} color="indigo" sub="backup-cc" />
+      {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-sub">Vue d'ensemble du système de sauvegarde</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={networkOk ? 'badge-green' : 'badge-red'}>
+            <span className={`w-1.5 h-1.5 rounded-full inline-block ${networkOk ? 'bg-emerald-400' : 'bg-red-400'}`} />
+            {networkOk ? 'Réseau opérationnel' : 'Réseau en erreur'}
+          </span>
+          <button onClick={load} disabled={loading} className="btn-ghost p-2">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Sauvegardes récentes</h2>
+      {/* ── Stat cells — InfluxDB style ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+        <StatCard
+          label="Sauvegardes"
+          value={loading ? '—' : backups.length}
+          icon={HardDrive}
+          color="cyan"
+        />
+        <StatCard
+          label="Stockage IPFS"
+          value={loading ? '—' : formatSize(totalSize)}
+          icon={Activity}
+          color="purple"
+        />
+        <StatCard
+          label="Réseau"
+          value={loading ? '—' : networkOk ? 'OK' : 'ERR'}
+          icon={Wifi}
+          color={loading ? 'cyan' : networkOk ? 'green' : 'amber'}
+          sub="Fabric + IPFS Cluster"
+        />
+        <StatCard
+          label="Chaincode"
+          value="backup-cc"
+          icon={Shield}
+          color="indigo"
+          sub="canal: backupchannel"
+        />
+      </div>
+
+      {/* ── Main grid ────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Recent backups — panel avec header distinct */}
+        <div className="lg:col-span-2 panel">
+          <div className="panel-header">
+            <span className="panel-title">Sauvegardes récentes</span>
+            <span className="text-xs text-ink-300 font-mono">{backups.length} total</span>
+          </div>
           {loading ? (
-            <p className="text-gray-400 text-sm">Chargement…</p>
+            <div className="p-10 text-center">
+              <div className="w-5 h-5 border-2 border-ink-500 border-t-brand rounded-full animate-spin mx-auto" />
+              <p className="text-ink-300 text-xs mt-3">Chargement…</p>
+            </div>
           ) : backups.length === 0 ? (
-            <p className="text-gray-400 text-sm">Aucune sauvegarde pour l'instant. Déposez un fichier →</p>
+            <div className="p-10 text-center">
+              <HardDrive size={28} className="text-ink-500 mx-auto mb-2" />
+              <p className="text-ink-300 text-sm">Aucune sauvegarde — déposez un fichier →</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                    <th className="pb-2 px-4">Fichier</th>
-                    <th className="pb-2 px-4">Taille</th>
-                    <th className="pb-2 px-4">Date</th>
-                    <th className="pb-2 px-4">Statut</th>
-                    <th className="pb-2 px-4" />
+                  <tr className="border-b border-ink-500">
+                    <th className="th">Fichier</th>
+                    <th className="th">Taille</th>
+                    <th className="th">Date</th>
+                    <th className="th">Statut</th>
+                    <th className="th" />
                   </tr>
                 </thead>
                 <tbody>
-                  {[...backups].reverse().slice(0, 5).map((b) => (
+                  {[...backups].reverse().slice(0, 6).map((b) => (
                     <BackupRow key={b.backupId} backup={b} />
                   ))}
                 </tbody>
@@ -70,10 +120,19 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Nouvelle sauvegarde</h2>
-          <UploadZone onSuccess={load} />
+        {/* Upload — panel avec header distinct */}
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <span className="panel-title">Nouvelle sauvegarde</span>
+              <p className="text-[11px] text-ink-400 mt-0.5 font-mono">AES-256 + IPFS Cluster</p>
+            </div>
+          </div>
+          <div className="panel-body">
+            <UploadZone onSuccess={load} />
+          </div>
         </div>
+
       </div>
     </div>
   );

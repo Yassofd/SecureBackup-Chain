@@ -11,6 +11,8 @@ const server = app.listen(PORT, async () => {
   await scheduler.loadAll();
   const monitoring = require('./services/monitoring');
   monitoring.start();
+  const snapshot = require('./services/snapshot');
+  snapshot.start();
 });
 
 process.on('SIGTERM', () => {
@@ -18,6 +20,8 @@ process.on('SIGTERM', () => {
   fabric.disconnect();
   const monitoring = require('./services/monitoring');
   monitoring.stop();
+  const snapshot = require('./services/snapshot');
+  snapshot.stop();
   server.close(() => process.exit(0));
 });
 

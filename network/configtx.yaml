@@ -227,3 +227,35 @@ Profiles:
         - *Org3
       Capabilities:
         <<: *ApplicationCapabilities
+
+  # ── Profils pour bootstrap Org1-only (N-node dynamique) ──────────────────
+  Org1Genesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Addresses:
+        - orderer.org1.example.com:7050
+      EtcdRaft:
+        Consenters:
+          - Host: orderer.org1.example.com
+            Port: 7050
+            ClientTLSCert: crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt
+            ServerTLSCert: crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt
+      Organizations:
+        - *Org1Orderer
+      Capabilities:
+        <<: *OrdererCapabilities
+    Consortiums:
+      BackupConsortium:
+        Organizations:
+          - *Org1
+
+  Org1Channel:
+    <<: *ChannelDefaults
+    Consortium: BackupConsortium
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *Org1
+      Capabilities:
+        <<: *ApplicationCapabilities

@@ -43,9 +43,9 @@ Passage à un système distribué et tolérant aux pannes.
 
 Finitions, restauration distante, cluster IPFS et durcissement.
 
-- [ ] **Phase 15** — [Restauration vers serveur distant](phases/phase-15.md)
-- [ ] **Phase 16** — [Cluster IPFS et réplication](phases/phase-16.md)
-- [ ] **Phase 17** — [Finitions et durcissement production](phases/phase-17.md)
+- [x] **Phase 15** — [Restauration vers serveur distant](phases/phase-15.md)
+- [x] **Phase 16** — [Cluster IPFS et réplication](phases/phase-16.md)
+- [x] **Phase 17** — [Finitions et durcissement production](phases/phase-17.md)
 
 ---
 

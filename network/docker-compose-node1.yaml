@@ -1,7 +1,7 @@
-version: '3.8'
 # ══════════════════════════════════════════════════════════════════════════════
 # NŒUD 1 — Org1 : orderer.org1 + peer0.org1 + ca.org1 + couchdb0 + ipfs0
-# Machine 1 uniquement. Requiert .env avec ORG1_IP, ORG2_IP, ORG3_IP
+# Machine 1 uniquement. ORG2_IP, ORG3_IP... mis à jour automatiquement
+# lors du déploiement de chaque nouveau nœud distant.
 # ══════════════════════════════════════════════════════════════════════════════
 
 networks:
@@ -10,12 +10,18 @@ networks:
 
 x-extra-hosts: &extra-hosts
   extra_hosts:
-    - "orderer.org2.example.com:${ORG2_IP}"
-    - "peer0.org2.example.com:${ORG2_IP}"
-    - "ca.org2.example.com:${ORG2_IP}"
-    - "orderer.org3.example.com:${ORG3_IP}"
-    - "peer0.org3.example.com:${ORG3_IP}"
-    - "ca.org3.example.com:${ORG3_IP}"
+    - "orderer.org2.example.com:${ORG2_IP:-127.0.0.1}"
+    - "peer0.org2.example.com:${ORG2_IP:-127.0.0.1}"
+    - "ca.org2.example.com:${ORG2_IP:-127.0.0.1}"
+    - "orderer.org3.example.com:${ORG3_IP:-127.0.0.1}"
+    - "peer0.org3.example.com:${ORG3_IP:-127.0.0.1}"
+    - "ca.org3.example.com:${ORG3_IP:-127.0.0.1}"
+    - "orderer.org4.example.com:${ORG4_IP:-127.0.0.1}"
+    - "peer0.org4.example.com:${ORG4_IP:-127.0.0.1}"
+    - "ca.org4.example.com:${ORG4_IP:-127.0.0.1}"
+    - "orderer.org5.example.com:${ORG5_IP:-127.0.0.1}"
+    - "peer0.org5.example.com:${ORG5_IP:-127.0.0.1}"
+    - "ca.org5.example.com:${ORG5_IP:-127.0.0.1}"
 
 services:
 
@@ -128,7 +134,28 @@ services:
     networks:
       - fabric
 
+  cluster0:
+    image: ipfs/ipfs-cluster:latest
+    container_name: cluster0
+    depends_on:
+      - ipfs0
+    environment:
+      - CLUSTER_PEERNAME=cluster0
+      - CLUSTER_SECRET=${CLUSTER_SECRET}
+      - CLUSTER_IPFSHTTP_NODEMULTIADDRESS=/dns4/ipfs0/tcp/5001
+      - CLUSTER_CRDT_TRUSTEDPEERS=*
+      - CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS=/ip4/0.0.0.0/tcp/9094
+      - CLUSTER_MONITORPINGINTERVAL=2s
+    ports:
+      - "9094:9094"
+      - "9096:9096"
+    volumes:
+      - cluster0-data:/data/ipfs-cluster
+    networks:
+      - fabric
+
 volumes:
   orderer1-data:
   peer0-org1-data:
   ipfs0-data:
+  cluster0-data:

@@ -3,7 +3,7 @@ import { FileText, Download } from 'lucide-react';
 import { backupsApi } from '../services/api';
 
 function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024)    return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
@@ -18,39 +18,35 @@ export default function BackupRow({ backup }) {
     const { data } = await backupsApi.download(backup.backupId);
     const url = URL.createObjectURL(data);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = backup.fileName;
-    a.click();
+    a.href = url; a.download = backup.fileName; a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-      <td className="py-3 px-4">
+    <tr className="border-b border-ink-600 hover:bg-ink-600/40 transition-colors group">
+      <td className="td">
         <div className="flex items-center gap-2">
-          <FileText size={14} className="text-gray-400 shrink-0" />
+          <FileText size={13} className="text-ink-400 shrink-0" />
           <Link
             to={`/backups/${backup.backupId}`}
-            className="text-indigo-600 hover:underline font-medium text-sm truncate max-w-xs"
+            className="text-brand hover:text-brand-300 font-medium text-sm truncate max-w-xs transition-colors"
           >
             {backup.fileName}
           </Link>
         </div>
       </td>
-      <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{formatSize(backup.fileSize)}</td>
-      <td className="py-3 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(backup.timestamp)}</td>
-      <td className="py-3 px-4">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-          {backup.status}
-        </span>
+      <td className="td text-ink-300 whitespace-nowrap font-mono text-xs">{formatSize(backup.fileSize)}</td>
+      <td className="td text-ink-400 whitespace-nowrap font-mono text-xs">{formatDate(backup.timestamp)}</td>
+      <td className="td">
+        <span className="badge-green">{backup.status}</span>
       </td>
-      <td className="py-3 px-4">
+      <td className="td text-right pr-5">
         <button
           onClick={handleDownload}
-          className="text-gray-400 hover:text-indigo-600 transition-colors"
+          className="text-ink-500 hover:text-brand transition-colors opacity-0 group-hover:opacity-100"
           title="Télécharger"
         >
-          <Download size={16} />
+          <Download size={14} />
         </button>
       </td>
     </tr>

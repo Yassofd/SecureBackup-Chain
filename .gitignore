@@ -40,3 +40,10 @@ npm-debug.log*
 .vscode/
 .idea/
 *.swp
+
+# Runtime / état local
+.claude/
+backend/config/initialized.json
+network/fabric-samples/
+network/.env.node*/
+network/.env.chaincode*

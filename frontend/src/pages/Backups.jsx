@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Search, Upload } from 'lucide-react';
+import { Search, Upload, HardDrive } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BackupRow from '../components/BackupRow';
 import { backupsApi } from '../services/api';
 
 export default function Backups() {
   const [backups, setBackups] = useState([]);
-  const [search, setSearch] = useState('');
+  const [search,  setSearch]  = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,60 +21,74 @@ export default function Backups() {
     .filter((b) => b.fileName.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Sauvegardes</h1>
+    <div className="p-7">
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Sauvegardes</h1>
+          <p className="page-sub">Fichiers sauvegardés sur IPFS Cluster</p>
+        </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300 pointer-events-none" />
             <input
               type="text"
-              placeholder="Rechercher un fichier…"
+              placeholder="Rechercher…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="input pl-8 w-56"
             />
           </div>
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Upload size={14} />
-            Uploader
+          <Link to="/" className="btn-primary">
+            <Upload size={13} /> Uploader
           </Link>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Table panel */}
+      <div className="panel">
+        <div className="panel-header">
+          <span className="panel-title">Fichiers</span>
+          <span className="text-xs text-ink-300 font-mono">{filtered.length} résultat(s)</span>
+        </div>
+
         {loading ? (
-          <p className="p-10 text-center text-gray-400">Chargement…</p>
+          <div className="p-12 text-center">
+            <div className="w-5 h-5 border-2 border-ink-500 border-t-brand rounded-full animate-spin mx-auto" />
+            <p className="text-ink-300 text-xs mt-3">Chargement…</p>
+          </div>
         ) : filtered.length === 0 ? (
-          <p className="p-10 text-center text-gray-400">
-            {search ? `Aucun fichier correspondant à "${search}"` : 'Aucune sauvegarde pour l\'instant.'}
-          </p>
+          <div className="p-12 text-center">
+            <HardDrive size={32} className="text-ink-500 mx-auto mb-3" />
+            <p className="text-ink-300 text-sm">
+              {search ? `Aucun fichier pour "${search}"` : 'Aucune sauvegarde pour l\'instant.'}
+            </p>
+          </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-                <th className="py-3 px-4">Fichier</th>
-                <th className="py-3 px-4">Taille</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Statut</th>
-                <th className="py-3 px-4" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((b) => (
-                <BackupRow key={b.backupId} backup={b} />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-ink-500">
+                  <th className="th">Fichier</th>
+                  <th className="th">Taille</th>
+                  <th className="th">Date</th>
+                  <th className="th">Statut</th>
+                  <th className="th" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((b) => <BackupRow key={b.backupId} backup={b} />)}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-ink-600 bg-ink-800/40">
+            <span className="text-xs text-ink-400 font-mono">{filtered.length} fichier(s)</span>
+          </div>
         )}
       </div>
-
-      {!loading && (
-        <p className="text-xs text-gray-400 mt-3 text-right">{filtered.length} sauvegarde(s)</p>
-      )}
     </div>
   );
 }

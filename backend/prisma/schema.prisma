@@ -34,6 +34,8 @@ model RefreshToken {
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 
@@ -43,6 +45,8 @@ model BackupOwnership {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId])
+  @@index([createdAt])
   @@map("backup_ownership")
 }
 
@@ -96,6 +100,8 @@ model ScheduledBackupRun {
   backupId     String?   @map("backup_id") @db.VarChar(100)
   errorMessage String?   @map("error_message")
 
+  @@index([scheduleId, status])
+  @@index([startedAt])
   @@map("scheduled_backup_runs")
 }
 
@@ -109,6 +115,8 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId, read])
+  @@index([createdAt])
   @@map("notifications")
 }
 
@@ -127,6 +135,25 @@ model NetworkNode {
 
   @@unique([name])
   @@map("network_nodes")
+}
+
+model FabricNode {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgNum      Int      @unique @map("org_num")
+  orgName     String   @map("org_name") @db.VarChar(50)
+  host        String   @db.VarChar(255)
+  ip          String   @db.VarChar(45)
+  sshUser     String   @map("ssh_user") @db.VarChar(100)
+  peerPort    Int      @map("peer_port")
+  ordererPort Int      @map("orderer_port")
+  caPort      Int      @map("ca_port")
+  ipfsPort    Int      @map("ipfs_port")
+  couchPort   Int      @map("couch_port")
+  status      String   @default("deploying") @db.VarChar(20)
+  deployedAt  DateTime @default(now()) @map("deployed_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("fabric_nodes")
 }
 
 enum Role {
