@@ -223,38 +223,44 @@ log "Conteneurs démarrés"
 step "5/7" "Attente de la disponibilité des services"
 info "Patientez pendant le démarrage de la blockchain (30-60 secondes)..."
 
-MAX_WAIT=120
-ELAPSED=0
 API_BASE="http://localhost:${HTTP_PORT:-80}/api"
 
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-  STATUS=$(curl -s "$API_BASE/health" 2>/dev/null || echo "")
-  if echo "$STATUS" | grep -q '"fabric":"ok"'; then
-    break
-  fi
-  printf "\r  ${CYAN}→${NC}  Démarrage en cours... ${ELAPSED}s"
-  sleep 5
-  ELAPSED=$((ELAPSED + 5))
-done
-echo ""
+# Attendre que le backend réponde HTTP 200 (pas juste TCP ouvert)
+wait_backend() {
+  local max=$1 elapsed=0
+  while [ $elapsed -lt $max ]; do
+    local code
+    code=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/health" 2>/dev/null)
+    [ "$code" = "200" ] && return 0
+    printf "\r  ${CYAN}→${NC}  Démarrage en cours... ${elapsed}s (backend: $code)"
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  return 1
+}
 
-if ! echo "$STATUS" | grep -q '"fabric":"ok"'; then
-  warn "La blockchain n'est pas encore prête — poursuite de l'installation..."
-  warn "Relancez 'make init-network' si la connexion échoue après le premier login"
+if wait_backend 300; then
+  STATUS=$(curl -s "$API_BASE/health" 2>/dev/null || echo "")
+  echo ""
+  if echo "$STATUS" | grep -q '"fabric":"ok"'; then
+    log "Backend et blockchain opérationnels"
+  else
+    warn "Backend prêt mais blockchain en cours d'initialisation"
+  fi
+else
+  echo ""
+  warn "Le backend n'a pas répondu en 5 minutes — poursuite de l'installation..."
+  warn "Relancez 'make init-network' après le premier login si nécessaire"
 fi
 
 # ── [6] Création du canal et déploiement du chaincode ───────────────────────
 step "6/7" "Initialisation du réseau Fabric"
 info "Création du canal et déploiement du contrat intelligent..."
 
+# Re-vérifier que le backend est bien HTTP 200
 BACKEND_READY=false
-for i in $(seq 1 30); do
-  if curl -s "$API_BASE/health" >/dev/null 2>&1; then
-    BACKEND_READY=true
-    break
-  fi
-  sleep 2
-done
+BACKEND_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE/health" 2>/dev/null)
+[ "$BACKEND_CODE" = "200" ] && BACKEND_READY=true
 
 if $BACKEND_READY; then
   # Créer le compte admin (POST /api/setup/initialize via nginx)
