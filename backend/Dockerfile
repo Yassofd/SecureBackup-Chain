@@ -16,4 +16,7 @@ ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["node", "src/server.js"]
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+CMD ["./docker-entrypoint.sh"]

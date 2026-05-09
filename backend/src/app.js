@@ -20,6 +20,9 @@ const adminRouter       = require('./routes/admin');
 
 const app = express();
 
+// Trust nginx reverse proxy (required for express-rate-limit X-Forwarded-For)
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
