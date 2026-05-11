@@ -15,6 +15,11 @@ const server = app.listen(PORT, async () => {
   snapshot.start();
 });
 
+// Node.js 18 default requestTimeout is 5 minutes — kills large file uploads.
+// Disabled here; nginx proxy_read_timeout (3600s) is the effective limit.
+server.requestTimeout = 0;
+server.headersTimeout = 65000; // slightly above nginx keepalive_timeout (default 75s)
+
 process.on('SIGTERM', () => {
   const fabric = require('./services/fabric');
   fabric.disconnect();
