@@ -250,9 +250,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@securebackup.local}
+      HOST_PROJECT_DIR: ${PWD}
+      DOCKER_NETWORK: securebackup-net
     volumes:
       - ./network/crypto-config:/securebackup/network/crypto-config:ro
-      - ./network/channel-artifacts:/securebackup/network/channel-artifacts:ro
+      - ./network/channel-artifacts:/securebackup/network/channel-artifacts
       - ./network:/securebackup/network:ro
       - ./backend/config/initialized.json:/securebackup/backend/config/initialized.json
       - backend-wallet:/securebackup/wallet

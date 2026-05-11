@@ -8,8 +8,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN="$SCRIPT_DIR/fabric-samples/bin"
+# Si HOST_PROJECT_DIR est défini (exécution depuis Docker), utiliser le chemin hôte
+# pour les volumes docker run, sinon utiliser le chemin local
+HOST_NET="${HOST_PROJECT_DIR:+$HOST_PROJECT_DIR/network}"
+HOST_NET="${HOST_NET:-$SCRIPT_DIR}"
 CRYPTO="$SCRIPT_DIR/crypto-config"
 ARTIFACTS="$SCRIPT_DIR/channel-artifacts"
+HOST_CRYPTO="$HOST_NET/crypto-config"
+HOST_ARTIFACTS="$HOST_NET/channel-artifacts"
 CHANNEL="backupchannel"
 CC_NAME="backup-cc"
 CC_VERSION="${CC_VERSION:-1.0}"
@@ -108,9 +114,9 @@ ORDERER_ADDR="-o orderer.org1.example.com:7050"
 
 peer1_cli() {
   echo "docker run --rm \
-    --network securebackup-fabric \
-    -v $CRYPTO:/etc/hyperledger/crypto-config \
-    -v $ARTIFACTS:/etc/hyperledger/channel-artifacts \
+    --network ${DOCKER_NETWORK:-securebackup-net} \
+    -v $HOST_CRYPTO:/etc/hyperledger/crypto-config \
+    -v $HOST_ARTIFACTS:/etc/hyperledger/channel-artifacts \
     -e FABRIC_CFG_PATH=/var/hyperledger/fabric/config \
     -e CORE_PEER_LOCALMSPID=Org1MSP \
     -e CORE_PEER_TLS_ENABLED=true \
@@ -150,8 +156,9 @@ ok "anchor_peers" "Anchor peer Org1 configuré"
 
 # ── [9] Déploiement chaincode ─────────────────────────────────────────────────
 step "deploy_chaincode" "Déploiement chaincode $CC_NAME v$CC_VERSION..."
-bash "$SCRIPT_DIR/scripts/deploy-chaincode.sh" "$CC_VERSION" "$CC_SEQUENCE" 2>&1 | \
-  grep -E "^\[|→|✓|Erreur|Error|Package ID" || true
+DOCKER_NETWORK="${DOCKER_NETWORK:-securebackup-net}" \
+bash "$SCRIPT_DIR/scripts/deploy-chaincode-single.sh" "$CC_VERSION" "$CC_SEQUENCE" 2>&1 | \
+  grep -E "→|✓|WARN|ERROR|Package ID" || true
 ok "deploy_chaincode" "Chaincode déployé"
 
 log "DONE:network Nœud 1 (Org1) opérationnel — réseau prêt pour l'ajout de nœuds distants"
