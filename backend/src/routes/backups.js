@@ -7,7 +7,8 @@ const path = require('path');
 const os = require('os');
 const fabric = require('../services/fabric');
 const ipfs = require('../services/ipfs');
-const { sha256, sha256File, encryptAES, encryptFileToFile, decryptAES } = require('../services/crypto');
+const busboy = require('busboy');
+const { sha256, sha256File, encryptAES, encryptFileToFile, createEncryptStream, decryptAES } = require('../services/crypto');
 const { encrypt: encryptCred, decrypt: decryptCred } = require('../services/credentials');
 const sshService = require('../services/ssh');
 const db = require('../services/db');
@@ -18,45 +19,76 @@ const env = require('../../config/env');
 
 const router = Router();
 
-// diskStorage : le fichier est écrit sur disque, pas en RAM — supporte les gros fichiers
+// multer diskStorage conservé uniquement pour la route /verify (fichiers modérés)
 const upload = multer({
   storage: multer.diskStorage({
     destination: os.tmpdir(),
-    filename: (req, file, cb) => cb(null, `sbc-upload-${randomUUID()}`),
+    filename: (req, file, cb) => cb(null, `sbc-verify-${randomUUID()}`),
   }),
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10 Go max pour verify
 });
 
 router.use(authMiddleware);
 
 // POST /api/backups — admin et responsable uniquement
-router.post('/', requireRole('admin', 'responsable'), upload.single('file'), async (req, res, next) => {
-  const tempPlain = req.file?.path;
-  const tempEnc   = tempPlain ? `${tempPlain}.enc` : null;
+// Streaming pur via busboy : zéro fichier temporaire, zéro Buffer complet en RAM.
+// Pipeline : HTTP body → busboy → hash+cipher (single pass) → IPFS
+// Supporte des fichiers de taille quelconque (3 To et plus).
+router.post('/', requireRole('admin', 'responsable'), async (req, res, next) => {
+  const ct = req.headers['content-type'] || '';
+  if (!ct.includes('multipart/form-data')) {
+    return res.status(400).json({ error: 'multipart/form-data requis' });
+  }
+
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { originalname, mimetype, size } = req.file;
+    await new Promise((resolve, reject) => {
+      const bb = busboy({ headers: req.headers, limits: { files: 1 } });
+      let handled = false;
 
-    // Streaming : aucune donnée complète en RAM
-    const fileHash = await sha256File(tempPlain);
-    await encryptFileToFile(tempPlain, tempEnc, env.MASTER_KEY);
-    const cid = await ipfs.addFromFile(tempEnc, originalname);
+      bb.on('file', async (fieldName, fileStream, info) => {
+        if (handled) { fileStream.resume(); return; }
+        handled = true;
 
-    const backupId = randomUUID();
-    const entry = await fabric.submitTransaction(
-      'registerBackup',
-      backupId, cid, originalname, fileHash, String(size), mimetype,
-    );
+        const filename = info.filename || 'file';
+        const mimeType = info.mimeType || 'application/octet-stream';
 
-    await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
-    notify(req.user.sub, 'backup_success', 'Sauvegarde créée',
-      `Fichier "${originalname}" (${(size / 1048576).toFixed(1)} Mo) sauvegardé avec succès.`);
+        try {
+          // Single pass : hash SHA-256 du clair + chiffrement AES-256-CBC simultanés
+          const { stream: encStream, getHash, getSize } = createEncryptStream(fileStream, env.MASTER_KEY);
 
-    res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
+          // Envoi streamé vers IPFS — le chiffré n'est jamais écrit sur disque
+          const cid = await ipfs.addFromAsyncIterable(encStream, filename);
+
+          const fileHash = getHash(); // disponible après consommation complète du stream
+          const size     = getSize();
+
+          const backupId = randomUUID();
+          const entry = await fabric.submitTransaction(
+            'registerBackup',
+            backupId, cid, filename, fileHash, String(size), mimeType,
+          );
+
+          await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
+
+          const sizeFmt = size >= 1073741824
+            ? `${(size / 1073741824).toFixed(2)} Go`
+            : `${(size / 1048576).toFixed(1)} Mo`;
+          notify(req.user.sub, 'backup_success', 'Sauvegarde créée',
+            `Fichier "${filename}" (${sizeFmt}) sauvegardé avec succès.`);
+
+          res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      bb.on('finish', () => { if (!handled) reject(new Error('No file uploaded')); });
+      bb.on('error', reject);
+      req.pipe(bb);
+    });
   } catch (err) {
     next(err);
-  } finally {
-    if (tempPlain) fs.unlink(tempPlain, () => {});
-    if (tempEnc)   fs.unlink(tempEnc,   () => {});
   }
 });
 
@@ -177,16 +209,17 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
     await sshService.closeConnection(ssh);
     ssh = null;
 
-    // Streaming : hash + chiffrement sans charger le fichier en RAM
+    // Single pass streaming : hash SHA-256 + chiffrement AES → IPFS sans fichier chiffré temporaire
     const baseName = path.posix.basename(remotePath);
     const fileName = isDirectory ? `${baseName}.tar.gz` : baseName;
     const mimeType = isDirectory ? 'application/gzip' : 'application/octet-stream';
     const size = fs.statSync(tmpPath).size;
 
-    const localHash = await sha256File(tmpPath);
-    const encPath = `${tmpPath}.enc`;
-    await encryptFileToFile(tmpPath, encPath, env.MASTER_KEY);
-    const cid = await ipfs.addFromFile(encPath, fileName);
+    const { stream: encStream, getHash: getLocalHash } = createEncryptStream(
+      fs.createReadStream(tmpPath), env.MASTER_KEY,
+    );
+    const cid = await ipfs.addFromAsyncIterable(encStream, fileName);
+    const localHash = getLocalHash();
 
     // Enregistrement Fabric
     const backupId = randomUUID();
@@ -212,9 +245,7 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
     next(err);
   } finally {
     if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
-    if (tmpPath) fs.unlink(tmpPath, () => {});
-    const _encPath = tmpPath ? `${tmpPath}.enc` : null;
-    if (_encPath) fs.unlink(_encPath, () => {});
+    if (tmpPath) fs.unlink(tmpPath, () => {}); // seul fichier temp : le clair téléchargé via SSH
   }
 });
 
