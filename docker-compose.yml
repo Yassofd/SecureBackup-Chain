@@ -258,6 +258,7 @@ services:
       - backend-wallet:/securebackup/wallet
       - backend-logs:/securebackup/logs
       - snapshots:/securebackup/snapshots
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - securebackup
     healthcheck:
