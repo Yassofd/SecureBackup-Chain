@@ -30,7 +30,7 @@ export default function Dashboard() {
   const networkOk = health?.fabric === 'ok' && health?.ipfs === 'ok';
 
   return (
-    <div className="p-7">
+    <div className="p-8">
 
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="page-header">
@@ -40,7 +40,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <span className={networkOk ? 'badge-green' : 'badge-red'}>
-            <span className={`w-1.5 h-1.5 rounded-full inline-block ${networkOk ? 'bg-emerald-400' : 'bg-red-400'}`} />
+            <span className={networkOk ? 'dot-live' : 'dot-error'} />
             {networkOk ? 'Réseau opérationnel' : 'Réseau en erreur'}
           </span>
           <button onClick={load} disabled={loading} className="btn-ghost p-2">
@@ -49,8 +49,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Stat cells — InfluxDB style ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+      {/* ── Stat cells ──────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Sauvegardes"
           value={loading ? '—' : backups.length}
@@ -82,27 +82,35 @@ export default function Dashboard() {
       {/* ── Main grid ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {/* Recent backups — panel avec header distinct */}
+        {/* Recent backups */}
         <div className="lg:col-span-2 panel">
           <div className="panel-header">
             <span className="panel-title">Sauvegardes récentes</span>
             <span className="text-xs text-ink-300 font-mono">{backups.length} total</span>
           </div>
           {loading ? (
-            <div className="p-10 text-center">
-              <div className="w-5 h-5 border-2 border-ink-500 border-t-brand rounded-full animate-spin mx-auto" />
+            <div className="p-12 text-center">
+              <div
+                className="w-6 h-6 rounded-full border-2 border-ink-500 border-t-brand animate-spin mx-auto"
+                style={{ boxShadow: '0 0 10px rgba(0,180,216,0.2)' }}
+              />
               <p className="text-ink-300 text-xs mt-3">Chargement…</p>
             </div>
           ) : backups.length === 0 ? (
-            <div className="p-10 text-center">
-              <HardDrive size={28} className="text-ink-500 mx-auto mb-2" />
+            <div className="p-12 text-center">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <HardDrive size={22} className="text-ink-500" />
+              </div>
               <p className="text-ink-300 text-sm">Aucune sauvegarde — déposez un fichier →</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-ink-500">
+                  <tr className="border-b border-ink-500/50">
                     <th className="th">Fichier</th>
                     <th className="th">Taille</th>
                     <th className="th">Date</th>
@@ -120,7 +128,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Upload — panel avec header distinct */}
+        {/* Upload zone */}
         <div className="panel">
           <div className="panel-header">
             <div>

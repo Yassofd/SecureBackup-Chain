@@ -20,14 +20,16 @@
 
   /* ── Cards / Panels ──────────────────────────────────────────────────────── */
   .card {
-    @apply bg-ink-700 border border-ink-500 rounded-xl;
+    @apply bg-ink-700 border border-ink-500/70 rounded-xl shadow-card;
   }
 
-  /* Panel = card with a distinct header zone (InfluxDB "cell" style) */
-  .panel { @apply bg-ink-700 border border-ink-500 rounded-xl overflow-hidden; }
+  .panel {
+    @apply bg-ink-700 border border-ink-500/70 rounded-xl overflow-hidden shadow-card;
+  }
   .panel-header {
-    @apply bg-ink-800 border-b border-ink-500 px-5 py-3.5
+    @apply bg-ink-800/80 border-b border-ink-500/50 px-5 py-3.5
            flex items-center justify-between;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
   }
   .panel-title { @apply text-sm font-semibold text-ink-50 tracking-tight; }
   .panel-body  { @apply p-5; }
@@ -37,65 +39,110 @@
     @apply inline-flex items-center justify-center gap-1.5
            bg-brand text-white px-4 py-2 rounded-lg
            text-sm font-semibold tracking-tight
-           hover:bg-brand-400 active:bg-brand-600
+           hover:bg-brand-400
+           active:bg-brand-600 active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed
-           transition-colors;
+           transition-all duration-150;
   }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 0 16px rgba(0,180,216,0.35), 0 0 5px rgba(0,180,216,0.2);
+  }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,180,216,0.3);
+  }
+
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-1.5
            text-ink-200 hover:text-ink-50 hover:bg-ink-550
            px-3 py-2 rounded-lg text-sm font-medium
-           disabled:opacity-40 transition-colors;
+           disabled:opacity-40 transition-all duration-150;
   }
+
   .btn-outline {
     @apply inline-flex items-center justify-center gap-1.5
-           border border-ink-400 text-ink-200
+           border border-ink-400/80 text-ink-200
            hover:border-brand hover:text-brand
            px-4 py-2 rounded-lg text-sm font-medium
-           disabled:opacity-40 transition-colors;
+           disabled:opacity-40 transition-all duration-150;
   }
+  .btn-outline:hover:not(:disabled) {
+    box-shadow: 0 0 10px rgba(0,180,216,0.15);
+  }
+
   .btn-danger {
     @apply inline-flex items-center justify-center gap-1.5
-           bg-red-500/10 text-red-400 border border-red-500/20
+           bg-red-500/10 text-red-400 border border-red-500/25
            px-4 py-2 rounded-lg text-sm font-medium
-           hover:bg-red-500/20 transition-colors;
+           hover:bg-red-500/20 transition-all duration-150;
+  }
+  .btn-danger:hover {
+    box-shadow: 0 0 12px rgba(239,68,68,0.18);
   }
 
   /* ── Form controls ──────────────────────────────────────────────────────── */
   .input {
-    @apply w-full bg-ink-600 border border-ink-500 rounded-lg
+    @apply w-full bg-ink-600/80 border border-ink-500/70 rounded-lg
            px-3 py-2 text-sm text-ink-50
            placeholder:text-ink-300
-           focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/25
-           transition-colors;
+           focus:outline-none focus:border-brand/70
+           transition-all duration-150;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 3px rgba(0,180,216,0.12), 0 0 12px rgba(0,180,216,0.08);
   }
   .label {
     @apply block text-xs font-medium text-ink-200 mb-1.5 uppercase tracking-wide;
   }
 
   /* ── Badges ─────────────────────────────────────────────────────────────── */
-  .badge-green  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20; }
-  .badge-red    { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-500/15    text-red-400    border border-red-500/20;     }
-  .badge-amber  { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15  text-amber-400  border border-amber-500/20;   }
-  .badge-blue   { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-brand/15      text-brand      border border-brand/20;        }
-  .badge-purple { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/15 text-purple-400 border border-purple-500/20; }
+  .badge-green  { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/25; }
+  .badge-red    { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10    text-red-400    border border-red-500/25;     }
+  .badge-amber  { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10  text-amber-400  border border-amber-500/25;   }
+  .badge-blue   { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-brand/10      text-brand      border border-brand/25;        }
+  .badge-purple { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/25; }
 
   /* ── Page layout ─────────────────────────────────────────────────────────── */
-  .page-header { @apply mb-6 flex items-start justify-between; }
-  .page-title  { @apply text-[22px] font-bold text-ink-50 tracking-tight leading-tight; }
+  .page-header { @apply mb-7 flex items-start justify-between; }
+  .page-title  { @apply text-2xl font-bold text-ink-50 tracking-tight leading-tight; }
   .page-sub    { @apply text-sm text-ink-300 mt-1; }
 
   /* ── Tables ─────────────────────────────────────────────────────────────── */
   .th {
     @apply text-left text-[10px] font-semibold text-ink-300
            uppercase tracking-widest pb-3 px-4
-           bg-ink-800/60;
+           bg-ink-800/50;
   }
-  .td { @apply py-3 px-4 text-sm; }
+  .td { @apply py-3.5 px-4 text-sm; }
+  .tr-hover {
+    @apply transition-colors duration-100
+           hover:bg-brand/[0.04] hover:border-l-2 hover:border-l-brand/40;
+  }
+
+  /* ── Glow dot (status indicator) ────────────────────────────────────────── */
+  .dot-live {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-emerald-400;
+    animation: glowPulse 2.5s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(16,185,129,0.7);
+  }
+  .dot-error {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-red-400;
+    box-shadow: 0 0 6px rgba(239,68,68,0.6);
+  }
 
   /* ── Misc ────────────────────────────────────────────────────────────────── */
-  .divider { @apply border-t border-ink-500; }
+  .divider { @apply border-t border-ink-500/60; }
   .section-title {
     @apply text-[10px] font-semibold text-ink-400 uppercase tracking-widest mb-2 px-4;
   }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.2); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }

@@ -8,24 +8,23 @@ export default {
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
       },
       colors: {
-        /* InfluxDB-matched dark palette */
         ink: {
-          950: '#080810',  // sidebar bg — darkest chrome
-          900: '#0d0d1c',  // app bg
-          850: '#111124',
-          800: '#14142a',  // subtle bg variant
-          750: '#181830',
-          700: '#1e1e38',  // card / panel bg
-          650: '#222242',
-          600: '#27274a',  // input bg, inner card
-          550: '#2c2c52',  // hover bg
-          500: '#32325a',  // borders
-          450: '#3c3c68',
-          400: '#474778',  // subtle borders
-          300: '#6767a0',  // muted / placeholder text
-          200: '#9090b8',  // secondary text
-          100: '#b8b8d0',  // tertiary text
-          50:  '#ededf8',  // primary text
+          950: '#06060f',
+          900: '#0b0b18',
+          850: '#0f0f20',
+          800: '#131328',
+          750: '#17172e',
+          700: '#1c1c36',
+          650: '#20203e',
+          600: '#252545',
+          550: '#2a2a4e',
+          500: '#303058',
+          450: '#3a3a68',
+          400: '#454578',
+          300: '#6565a0',
+          200: '#8e8eb8',
+          100: '#b6b6d0',
+          50:  '#eeeefc',
         },
         brand: {
           50:      '#e0f9fd',
@@ -39,6 +38,46 @@ export default {
           800:     '#006278',
           900:     '#004858',
         },
+      },
+      boxShadow: {
+        'glow-brand':   '0 0 20px rgba(0,180,216,0.22), 0 0 6px rgba(0,180,216,0.12)',
+        'glow-brand-sm':'0 0 10px rgba(0,180,216,0.18)',
+        'glow-brand-lg':'0 0 35px rgba(0,180,216,0.28), 0 0 12px rgba(0,180,216,0.16)',
+        'glow-emerald': '0 0 20px rgba(16,185,129,0.2)',
+        'glow-red':     '0 0 20px rgba(239,68,68,0.2)',
+        'glow-purple':  '0 0 20px rgba(139,92,246,0.2)',
+        'glow-amber':   '0 0 20px rgba(245,158,11,0.18)',
+        'glow-indigo':  '0 0 20px rgba(99,102,241,0.2)',
+        'inner-top':    'inset 0 1px 0 rgba(255,255,255,0.06)',
+        'card':         '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+      },
+      backgroundImage: {
+        'gradient-logo':   'linear-gradient(135deg, rgba(0,180,216,0.22) 0%, rgba(139,92,246,0.14) 100%)',
+        'gradient-sidebar':'linear-gradient(180deg, rgba(0,180,216,0.04) 0%, transparent 40%)',
+        'glow-cyan':       'radial-gradient(ellipse at top left, rgba(0,180,216,0.12) 0%, transparent 60%)',
+        'glow-purple':     'radial-gradient(ellipse at top left, rgba(139,92,246,0.12) 0%, transparent 60%)',
+        'glow-emerald':    'radial-gradient(ellipse at top left, rgba(16,185,129,0.12) 0%, transparent 60%)',
+        'glow-amber':      'radial-gradient(ellipse at top left, rgba(245,158,11,0.12) 0%, transparent 60%)',
+        'glow-indigo':     'radial-gradient(ellipse at top left, rgba(99,102,241,0.12) 0%, transparent 60%)',
+      },
+      keyframes: {
+        glowPulse: {
+          '0%, 100%': { opacity: '0.6', transform: 'scale(1)' },
+          '50%':       { opacity: '1',   transform: 'scale(1.15)' },
+        },
+        shimmer: {
+          '0%':   { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition:  '200% 0' },
+        },
+        fadeIn: {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'glow-pulse': 'glowPulse 2.5s ease-in-out infinite',
+        'shimmer':    'shimmer 2.5s linear infinite',
+        'fade-in':    'fadeIn 0.15s ease-out',
       },
     },
   },
