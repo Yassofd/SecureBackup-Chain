@@ -1,4 +1,7 @@
 'use strict';
+const crypto = require('crypto');
+const fs = require('fs');
+const { Readable } = require('stream');
 const env = require('../../config/env');
 
 const API         = env.IPFS.API_URL;
@@ -10,8 +13,7 @@ async function version() {
   return res.json();
 }
 
-// Add via IPFS Cluster REST API — pins on all cluster peers automatically.
-// Falls back to direct IPFS node when cluster is not configured.
+// Upload depuis un Buffer (petits fichiers — backward compat)
 async function add(buffer, filename = 'file') {
   const formData = new FormData();
   formData.append('file', new Blob([buffer]), filename);
@@ -20,7 +22,6 @@ async function add(buffer, filename = 'file') {
     const res = await fetch(`${CLUSTER_URL}/add`, { method: 'POST', body: formData });
     if (!res.ok) throw new Error(`IPFS Cluster add failed: ${res.status}`);
     const data = await res.json();
-    // Cluster returns { cid: { "/": "<CID>" }, ... }
     const cid = data.cid?.['/'] ?? data.cid ?? data.Hash;
     if (!cid) throw new Error('IPFS Cluster returned no CID');
     return cid;
@@ -32,20 +33,58 @@ async function add(buffer, filename = 'file') {
   return data.Hash;
 }
 
+// Upload en streaming depuis un fichier — ne charge jamais le fichier en RAM.
+// Construit le multipart manuellement pour pouvoir streamer le corps.
+async function addFromFile(filePath, filename = 'file') {
+  const boundary = `SBCBoundary${crypto.randomBytes(8).toString('hex')}`;
+  const safeName = filename.replace(/"/g, '_');
+  const header = Buffer.from(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="file"; filename="${safeName}"\r\n` +
+    `Content-Type: application/octet-stream\r\n\r\n`,
+  );
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+
+  // Flux multipart = header + contenu du fichier + footer, sans tout lire en mémoire
+  const nodeStream = Readable.from((async function* () {
+    yield header;
+    for await (const chunk of fs.createReadStream(filePath)) yield chunk;
+    yield footer;
+  })());
+
+  // Conversion en Web ReadableStream pour fetch (Node.js 18+)
+  const webStream = Readable.toWeb(nodeStream);
+
+  const url = CLUSTER_URL ? `${CLUSTER_URL}/add` : `${API}/api/v0/add`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body: webStream,
+    duplex: 'half', // requis pour les corps streaming avec fetch Node.js 18
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => res.status);
+    throw new Error(`IPFS add failed: ${res.status} — ${txt}`);
+  }
+  const data = await res.json();
+  const cid = data.cid?.['/'] ?? data.cid ?? data.Hash;
+  if (!cid) throw new Error('IPFS returned no CID');
+  return cid;
+}
+
 async function cat(cid) {
   const res = await fetch(`${API}/api/v0/cat?arg=${encodeURIComponent(cid)}`, { method: 'POST' });
   if (!res.ok) throw new Error(`IPFS cat failed: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
 
-// Explicit pin via cluster (used if content was added outside cluster).
 async function pin(cid) {
   if (!CLUSTER_URL) return;
   const res = await fetch(`${CLUSTER_URL}/pins/${encodeURIComponent(cid)}`, { method: 'POST' });
   if (!res.ok) throw new Error(`IPFS Cluster pin failed: ${res.status}`);
 }
 
-// Returns cluster health (peers list) or null when cluster not configured.
 async function clusterPeers() {
   if (!CLUSTER_URL) return null;
   const res = await fetch(`${CLUSTER_URL}/peers`);
@@ -53,4 +92,4 @@ async function clusterPeers() {
   return res.json();
 }
 
-module.exports = { version, add, cat, pin, clusterPeers };
+module.exports = { version, add, addFromFile, cat, pin, clusterPeers };

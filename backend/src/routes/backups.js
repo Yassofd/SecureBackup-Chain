@@ -7,7 +7,7 @@ const path = require('path');
 const os = require('os');
 const fabric = require('../services/fabric');
 const ipfs = require('../services/ipfs');
-const { sha256, encryptAES, decryptAES } = require('../services/crypto');
+const { sha256, sha256File, encryptAES, encryptFileToFile, decryptAES } = require('../services/crypto');
 const { encrypt: encryptCred, decrypt: decryptCred } = require('../services/credentials');
 const sshService = require('../services/ssh');
 const db = require('../services/db');
@@ -17,19 +17,29 @@ const requireRole = require('../middleware/role');
 const env = require('../../config/env');
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+
+// diskStorage : le fichier est écrit sur disque, pas en RAM — supporte les gros fichiers
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: os.tmpdir(),
+    filename: (req, file, cb) => cb(null, `sbc-upload-${randomUUID()}`),
+  }),
+});
 
 router.use(authMiddleware);
 
 // POST /api/backups — admin et responsable uniquement
 router.post('/', requireRole('admin', 'responsable'), upload.single('file'), async (req, res, next) => {
+  const tempPlain = req.file?.path;
+  const tempEnc   = tempPlain ? `${tempPlain}.enc` : null;
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { buffer, originalname, mimetype, size } = req.file;
+    const { originalname, mimetype, size } = req.file;
 
-    const fileHash = sha256(buffer);
-    const encrypted = encryptAES(buffer, env.MASTER_KEY);
-    const cid = await ipfs.add(encrypted, originalname);
+    // Streaming : aucune donnée complète en RAM
+    const fileHash = await sha256File(tempPlain);
+    await encryptFileToFile(tempPlain, tempEnc, env.MASTER_KEY);
+    const cid = await ipfs.addFromFile(tempEnc, originalname);
 
     const backupId = randomUUID();
     const entry = await fabric.submitTransaction(
@@ -39,10 +49,15 @@ router.post('/', requireRole('admin', 'responsable'), upload.single('file'), asy
 
     await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
     notify(req.user.sub, 'backup_success', 'Sauvegarde créée',
-      `Fichier "${originalname}" (${(size / 1024).toFixed(1)} Ko) sauvegardé avec succès.`);
+      `Fichier "${originalname}" (${(size / 1048576).toFixed(1)} Mo) sauvegardé avec succès.`);
 
     res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  } finally {
+    if (tempPlain) fs.unlink(tempPlain, () => {});
+    if (tempEnc)   fs.unlink(tempEnc,   () => {});
+  }
 });
 
 // GET /api/backups — tous les rôles (responsable : filtré sur ses fichiers)
@@ -83,9 +98,10 @@ router.get('/:id', async (req, res, next) => {
 
 // POST /api/backups/:id/verify — tous les rôles
 router.post('/:id/verify', upload.single('file'), async (req, res, next) => {
+  const tempPath = req.file?.path;
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const fileHash = sha256(req.file.buffer);
+    const fileHash = await sha256File(tempPath);
     const result = await fabric.submitTransaction('verifyIntegrity', req.params.id, fileHash);
     if (!result.valid) {
       notify(req.user.sub, 'integrity_failure', 'Intégrité compromise',
@@ -95,6 +111,8 @@ router.post('/:id/verify', upload.single('file'), async (req, res, next) => {
   } catch (err) {
     if (err.message?.includes('introuvable')) return res.status(404).json({ error: err.message });
     next(err);
+  } finally {
+    if (tempPath) fs.unlink(tempPath, () => {});
   }
 });
 
@@ -159,17 +177,16 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
     await sshService.closeConnection(ssh);
     ssh = null;
 
-    // Lire le fichier local
-    const buffer = fs.readFileSync(tmpPath);
-    const localHash = sha256(buffer);
-    const size = buffer.length;
+    // Streaming : hash + chiffrement sans charger le fichier en RAM
     const baseName = path.posix.basename(remotePath);
     const fileName = isDirectory ? `${baseName}.tar.gz` : baseName;
     const mimeType = isDirectory ? 'application/gzip' : 'application/octet-stream';
+    const size = fs.statSync(tmpPath).size;
 
-    // Chiffrement + IPFS
-    const encrypted = encryptAES(buffer, env.MASTER_KEY);
-    const cid = await ipfs.add(encrypted, fileName);
+    const localHash = await sha256File(tmpPath);
+    const encPath = `${tmpPath}.enc`;
+    await encryptFileToFile(tmpPath, encPath, env.MASTER_KEY);
+    const cid = await ipfs.addFromFile(encPath, fileName);
 
     // Enregistrement Fabric
     const backupId = randomUUID();
@@ -195,7 +212,9 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
     next(err);
   } finally {
     if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
-    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
+    if (tmpPath) fs.unlink(tmpPath, () => {});
+    const _encPath = tmpPath ? `${tmpPath}.enc` : null;
+    if (_encPath) fs.unlink(_encPath, () => {});
   }
 });
 
