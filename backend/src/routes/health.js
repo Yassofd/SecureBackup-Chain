@@ -13,8 +13,9 @@ router.get('/', async (req, res) => {
     fabric.healthCheck().then(() => { health.fabric = 'ok'; }),
   ]);
 
-  const status = health.fabric === 'ok' && health.ipfs === 'ok' ? 200 : 503;
-  res.status(status).json(health);
+  // Always 200 so install.sh can detect the backend is up before Fabric is initialized.
+  // Callers check the JSON body for individual component status.
+  res.status(200).json(health);
 });
 
 module.exports = router;

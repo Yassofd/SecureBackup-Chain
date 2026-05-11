@@ -56,18 +56,6 @@ function buildConnectionProfile() {
         tlsCACerts: { pem: [read('peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem')] },
         httpOptions: { verify: false },
       },
-      'ca.org2.example.com': {
-        url: 'https://localhost:8054',
-        caName: 'ca-org2',
-        tlsCACerts: { pem: [read('peerOrganizations/org2.example.com/ca/ca.org2.example.com-cert.pem')] },
-        httpOptions: { verify: false },
-      },
-      'ca.org3.example.com': {
-        url: 'https://localhost:9054',
-        caName: 'ca-org3',
-        tlsCACerts: { pem: [read('peerOrganizations/org3.example.com/ca/ca.org3.example.com-cert.pem')] },
-        httpOptions: { verify: false },
-      },
     },
   };
 }

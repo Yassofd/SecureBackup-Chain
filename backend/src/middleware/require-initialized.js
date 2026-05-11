@@ -5,7 +5,9 @@ const path = require('path');
 const INIT_FILE = path.resolve(__dirname, '../../config/initialized.json');
 
 function isInitialized() {
-  return fs.existsSync(INIT_FILE);
+  if (!fs.existsSync(INIT_FILE)) return false;
+  const stat = fs.statSync(INIT_FILE);
+  return stat.isFile() && stat.size > 0;
 }
 
 function getConfig() {
