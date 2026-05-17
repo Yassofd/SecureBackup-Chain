@@ -10,7 +10,7 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
-- **Phase en cours** : Projet stable — toutes les 17 phases complétées ✅
+- **Phase en cours** : Phase 18 — Compression zstd (niveau bancaire)
 - **Dernière phase complétée** : Phase 17 — Finitions et durcissement production
   - helmet + rate limiting (500 req/15min global, 20 req/15min auth) + gzip compression
   - Logger Winston avec rotation quotidienne (logs/ — 30j app, 90j erreurs)
@@ -18,7 +18,12 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
   - Snapshots automatiques quotidiens à 02:00 (pg_dump + `peer channel fetch`) → snapshots/
   - Index PostgreSQL sur colonnes filtrées (user_id, created_at, status, expires_at)
   - Connection profile Fabric limité à Org1, discovery désactivé, endorsement policy `OR('Org1MSP.member')`
-- **Prochaine action** : Projet en production — maintenance et ajout de nœuds si besoin
+- **Roadmap étendue** : 9 nouvelles phases (18–26) pour atteindre le niveau bancaire national
+  - Performance : zstd (18), parallélisation (19), agent daemon (20)
+  - Protocole : MinIO S3 TLS 1.3 remplace SSH (21), déduplication CDC (22)
+  - Sécurité : HSM Vault (23), multi-org Fabric banque+auditeur (24)
+  - Conformité : DORA/rétention/legal hold (25), monitoring SLA Prometheus+Grafana (26)
+- **Prochaine action** : Démarrer Phase 18 — compression zstd dans le pipeline AES+IPFS
 
 Voir la liste complète des phases dans [docs/roadmap.md](docs/roadmap.md).
 

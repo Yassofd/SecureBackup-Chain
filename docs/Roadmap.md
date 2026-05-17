@@ -1,6 +1,6 @@
 # Roadmap du projet
 
-Liste des 17 phases de développement progressif. **Une seule phase à la fois.** Cocher au fur et à mesure.
+Liste des phases de développement progressif. **Une seule phase à la fois.** Cocher au fur et à mesure.
 
 ## Légende
 - [ ] Non commencée
@@ -46,6 +46,37 @@ Finitions, restauration distante, cluster IPFS et durcissement.
 - [x] **Phase 15** — [Restauration vers serveur distant](phases/phase-15.md)
 - [x] **Phase 16** — [Cluster IPFS et réplication](phases/phase-16.md)
 - [x] **Phase 17** — [Finitions et durcissement production](phases/phase-17.md)
+
+---
+
+## Niveau bancaire — Performance (phases 18 à 20)
+
+Multiplier le débit d'ingestion pour atteindre les volumes d'une banque nationale (20–200 To/jour).
+
+- [ ] **Phase 18** — [Compression zstd dans le pipeline](phases/phase-18.md)
+- [ ] **Phase 19** — [Uploads parallèles — N streams simultanés](phases/phase-19.md)
+- [ ] **Phase 20** — [Agent local daemon (remplace l'upload navigateur)](phases/phase-20.md)
+
+## Niveau bancaire — Protocole de transfert (phases 21 à 22)
+
+Remplacer SSH/SFTP par un protocole haute performance et sécurisé.
+
+- [ ] **Phase 21** — [MinIO S3 + TLS 1.3 — remplace SSH/SFTP](phases/phase-21.md)
+- [ ] **Phase 22** — [Déduplication CDC + backup incrémental](phases/phase-22.md)
+
+## Niveau bancaire — Sécurité enterprise (phases 23 à 24)
+
+Sécurité conforme aux exigences des établissements financiers.
+
+- [ ] **Phase 23** — [Gestion des clés HSM (HashiCorp Vault)](phases/phase-23.md)
+- [ ] **Phase 24** — [Multi-organisation Fabric (banque + auditeur)](phases/phase-24.md)
+
+## Niveau bancaire — Conformité et SLA (phases 25 à 26)
+
+Conformité réglementaire et tableau de bord opérationnel.
+
+- [ ] **Phase 25** — [Conformité DORA — rétention, legal hold, rapports](phases/phase-25.md)
+- [ ] **Phase 26** — [Monitoring SLA banking-grade (Prometheus + Grafana)](phases/phase-26.md)
 
 ---
 
