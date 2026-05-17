@@ -3,6 +3,10 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, CheckCircle, AlertCircle, Loader2, Lock, Clock, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { backupsApi } from '../services/api';
+import api from '../services/api';
+
+const CHUNK_SIZE      = 50 * 1024 * 1024;  // 50 Mo par requête
+const CHUNK_THRESHOLD = 100 * 1024 * 1024; // chunked pour fichiers > 100 Mo
 
 function fmtSize(bytes) {
   if (bytes < 1024)            return `${bytes} o`;
@@ -34,11 +38,24 @@ export default function UploadZone({ onSuccess }) {
 
   const reset = () => { setProgress(null); setSpeed(0); setLoaded(0); setTotal(0); setEta(null); };
 
+  const updateProgress = useCallback((bytesLoaded, bytesTotal) => {
+    const now = Date.now();
+    const dt  = (now - prevRef.current.time) / 1000;
+    const dl  = bytesLoaded - prevRef.current.loaded;
+    const spd = dt > 0.05 ? dl / dt : 0;
+    prevRef.current = { loaded: bytesLoaded, time: now };
+
+    const pct     = Math.round((bytesLoaded / bytesTotal) * 100);
+    const etaSecs = spd > 0 ? (bytesTotal - bytesLoaded) / spd : Infinity;
+    setProgress(pct);
+    setLoaded(bytesLoaded);
+    setSpeed(spd);
+    setEta(etaSecs);
+  }, []);
+
   const onDrop = useCallback(async (files) => {
     if (!files.length) return;
     const file = files[0];
-    const fd = new FormData();
-    fd.append('file', file);
 
     setStatus('uploading');
     setProgress(0);
@@ -48,25 +65,42 @@ export default function UploadZone({ onSuccess }) {
     prevRef.current  = { loaded: 0, time: Date.now() };
 
     try {
-      const { data } = await backupsApi.upload(fd, (e) => {
-        if (!e.total) return;
-        const now     = Date.now();
-        const elapsed = (now - startRef.current) / 1000;
+      let data;
 
-        // Vitesse moyenne glissante sur la dernière seconde
-        const dt    = (now - prevRef.current.time) / 1000;
-        const dl    = e.loaded - prevRef.current.loaded;
-        const spd   = dt > 0 ? dl / dt : 0;
-        prevRef.current = { loaded: e.loaded, time: now };
+      if (file.size > CHUNK_THRESHOLD) {
+        // Chunked upload : évite le timeout du tunnel Codespaces sur les gros fichiers
+        const uploadId    = crypto.randomUUID();
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        let bytesUploaded = 0;
 
-        const pct     = Math.round((e.loaded / e.total) * 100);
-        const etaSecs = spd > 0 ? (e.total - e.loaded) / spd : Infinity;
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const chunk = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
 
-        setProgress(pct);
-        setLoaded(e.loaded);
-        setSpeed(spd);
-        setEta(etaSecs);
-      });
+          const resp = await api.post(`/backups/chunks/${uploadId}`, chunk, {
+            headers: {
+              'Content-Type':    'application/octet-stream',
+              'x-chunk-index':   String(i),
+              'x-total-chunks':  String(totalChunks),
+              'x-filename':      encodeURIComponent(file.name),
+              'x-mime-type':     file.type || 'application/octet-stream',
+            },
+            onUploadProgress: (e) => {
+              updateProgress(bytesUploaded + (e.loaded || 0), file.size);
+            },
+          });
+          bytesUploaded += chunk.size;
+          data = resp.data;
+        }
+      } else {
+        // Upload direct (fichiers ≤ 100 Mo)
+        const fd = new FormData();
+        fd.append('file', file);
+        const resp = await backupsApi.upload(fd, (e) => {
+          if (e.total) updateProgress(e.loaded, e.total);
+        });
+        data = resp.data;
+      }
 
       setStatus('success');
       setMessage(`ID : ${data.backupId.slice(0, 8)}…`);
@@ -77,7 +111,7 @@ export default function UploadZone({ onSuccess }) {
       setMessage(err.response?.data?.error || "Échec de l'upload");
       reset();
     }
-  }, [onSuccess]);
+  }, [onSuccess, updateProgress]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

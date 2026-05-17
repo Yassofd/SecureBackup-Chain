@@ -1,5 +1,6 @@
 'use strict';
 const { Router } = require('express');
+const { PassThrough } = require('stream');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
 const fs = require('fs');
@@ -18,6 +19,18 @@ const requireRole = require('../middleware/role');
 const env = require('../../config/env');
 
 const router = Router();
+
+// ── Sessions de chunked upload ────────────────────────────────────────────────
+// Permet d'uploader de gros fichiers via le tunnel Codespaces en découpant en
+// morceaux de 50 Mo. Chaque chunk arrive dans une requête séparée → aucun
+// timeout tunnel. Le pipeline AES+IPFS reste en streaming continu.
+const chunkSessions = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000; // 2h sans activité
+  for (const [id, s] of chunkSessions) {
+    if (s.createdAt < cutoff) { s.passthrough.destroy(); chunkSessions.delete(id); }
+  }
+}, 10 * 60 * 1000);
 
 // multer diskStorage conservé uniquement pour la route /verify (fichiers modérés)
 const upload = multer({
@@ -92,6 +105,76 @@ router.post('/', requireRole('admin', 'responsable'), async (req, res, next) => 
     next(err);
   }
 });
+
+// POST /api/backups/chunks/:uploadId — chunked upload pour gros fichiers
+// Chaque chunk est envoyé en application/octet-stream avec les headers x-chunk-*.
+// Le pipeline AES+IPFS démarre dès le premier chunk et reste ouvert jusqu'au dernier.
+router.post(
+  '/chunks/:uploadId',
+  requireRole('admin', 'responsable'),
+  (req, res, next) => {
+    // Collecter le body brut (chunk binaire) sans parser JSON/multipart
+    const chunks = [];
+    req.on('data', (d) => chunks.push(d));
+    req.on('end', () => { req.rawBody = Buffer.concat(chunks); next(); });
+    req.on('error', next);
+  },
+  async (req, res, next) => {
+    const { uploadId } = req.params;
+    const chunkIndex  = parseInt(req.headers['x-chunk-index']  ?? '0', 10);
+    const totalChunks = parseInt(req.headers['x-total-chunks'] ?? '1', 10);
+    const filename    = decodeURIComponent(req.headers['x-filename']  || 'file');
+    const mimeType    = req.headers['x-mime-type'] || 'application/octet-stream';
+
+    try {
+      let session = chunkSessions.get(uploadId);
+
+      if (chunkIndex === 0) {
+        const passthrough = new PassThrough();
+        const { stream: encStream, getHash, getSize } = createEncryptStream(passthrough, env.MASTER_KEY);
+        const ipfsPromise = ipfs.addFromAsyncIterable(encStream, filename);
+        session = { passthrough, ipfsPromise, getHash, getSize, filename, mimeType, createdAt: Date.now(), userId: req.user.sub };
+        chunkSessions.set(uploadId, session);
+      }
+
+      if (!session) return res.status(400).json({ error: 'Session introuvable — relancer depuis le chunk 0' });
+
+      // Écriture du chunk dans le stream avec gestion de la backpressure
+      await new Promise((resolve, reject) => {
+        const ok = session.passthrough.write(req.rawBody, (err) => (err ? reject(err) : resolve()));
+        if (!ok) session.passthrough.once('drain', resolve);
+      });
+
+      const isLast = chunkIndex === totalChunks - 1;
+      if (!isLast) return res.json({ ok: true, received: chunkIndex + 1, total: totalChunks });
+
+      // Dernier chunk : finaliser le stream et attendre IPFS
+      session.passthrough.end();
+      const cid      = await session.ipfsPromise;
+      const fileHash = session.getHash();
+      const size     = session.getSize();
+      chunkSessions.delete(uploadId);
+
+      const backupId = randomUUID();
+      const entry = await fabric.submitTransaction(
+        'registerBackup',
+        backupId, cid, session.filename, fileHash, String(size), session.mimeType,
+      );
+      await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: session.userId } });
+
+      const sizeFmt = size >= 1073741824
+        ? `${(size / 1073741824).toFixed(2)} Go`
+        : `${(size / 1048576).toFixed(1)} Mo`;
+      notify(session.userId, 'backup_success', 'Sauvegarde créée',
+        `Fichier "${session.filename}" (${sizeFmt}) sauvegardé avec succès.`);
+
+      return res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
+    } catch (err) {
+      chunkSessions.delete(uploadId);
+      next(err);
+    }
+  },
+);
 
 // GET /api/backups — tous les rôles (responsable : filtré sur ses fichiers)
 router.get('/', async (req, res, next) => {
