@@ -351,6 +351,11 @@ if $BACKEND_READY; then
   fi
 fi
 
+# Recréer le conteneur chaincode pour qu'il charge le CHAINCODE_ID réel écrit
+# par init-network.sh dans le .env (docker compose restart ne recharge pas les vars).
+info "Rechargement du conteneur chaincode avec le bon CHAINCODE_ID..."
+docker compose up -d chaincode 2>/dev/null | grep -E "Created|Recreate|Started" | sed 's/^/     /' || true
+sleep 3
 log "Initialisation Fabric terminée"
 
 # ── [7] Récapitulatif ────────────────────────────────────────────────────────
