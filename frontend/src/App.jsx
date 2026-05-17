@@ -17,9 +17,13 @@ import Notifications from './pages/Notifications';
 import Audit from './pages/Audit';
 import Network from './pages/Network';
 import Deployment from './pages/Deployment';
+import Monitoring from './pages/Monitoring';
+import Security from './pages/Security';
+import Settings from './pages/Settings';
+import Users from './pages/Users';
 
 function AppRoutes() {
-  const [status, setStatus] = useState(null); // null = loading
+  const [status, setStatus] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,13 +32,16 @@ function AppRoutes() {
         setStatus(data.initialized);
         if (!data.initialized) navigate('/setup', { replace: true });
       })
-      .catch(() => setStatus(true)); // si API down, laisser passer
+      .catch(() => setStatus(true));
   }, []);
 
   if (status === null) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-slate-400 text-sm">Chargement…</div>
+      <div className="min-h-screen bg-ink-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-ink-600 border-t-brand rounded-full animate-spin" />
+          <p className="text-ink-400 text-sm">Chargement…</p>
+        </div>
       </div>
     );
   }
@@ -62,6 +69,10 @@ function AppRoutes() {
         <Route path="audit" element={<Audit />} />
         <Route path="network" element={<Network />} />
         <Route path="deployment" element={<Deployment />} />
+        <Route path="monitoring" element={<Monitoring />} />
+        <Route path="security" element={<Security />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="users" element={<Users />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -1,109 +1,127 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { HardDrive, Shield, Activity, Wifi, RefreshCw } from 'lucide-react';
-import StatCard from '../components/StatCard';
+import { backupsApi } from '../services/api';
 import UploadZone from '../components/UploadZone';
 import BackupRow from '../components/BackupRow';
-import { backupsApi } from '../services/api';
+import MetricCard from '../components/dashboard/MetricCard';
+import ClusterOverview from '../components/dashboard/ClusterOverview';
+import BackupSizesChart from '../components/dashboard/BackupSizesChart';
+import ThroughputChart from '../components/dashboard/ThroughputChart';
+import OngoingJobs from '../components/dashboard/OngoingJobs';
+import SystemHealth from '../components/dashboard/SystemHealth';
 
 function formatSize(bytes) {
+  if (!bytes) return '0 B';
   if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
+function useSparkline(base, variance) {
+  const [data, setData] = useState(() =>
+    Array.from({ length: 12 }, () => Math.round(base + (Math.random() - 0.5) * variance))
+  );
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setData((prev) => {
+        const last = prev[prev.length - 1];
+        const next = Math.max(0, Math.round(last + (Math.random() - 0.5) * (variance * 0.3)));
+        return [...prev.slice(1), next];
+      });
+    }, 4000);
+    return () => clearInterval(iv);
+  }, [base, variance]);
+  return data;
+}
+
+const fadeUp  = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.2, 0.8, 0.2, 1] } } };
+const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
+
 export default function Dashboard() {
   const [backups, setBackups] = useState([]);
   const [health,  setHealth]  = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chartKey, setChartKey] = useState(0);
+
+  const sparkBackups   = useSparkline(40, 20);
+  const sparkStorage   = useSparkline(60, 15);
+  const sparkNetwork   = useSparkline(80, 10);
+  const sparkChaincode = useSparkline(95, 5);
 
   const load = async () => {
+    setLoading(true);
     try {
       const [bRes, hRes] = await Promise.allSettled([backupsApi.list(), backupsApi.health()]);
       if (bRes.status === 'fulfilled') setBackups(bRes.value.data);
       if (hRes.status === 'fulfilled') setHealth(hRes.value.data);
-    } finally { setLoading(false); }
+    } finally { setLoading(false); setChartKey((k) => k + 1); }
   };
 
   useEffect(() => { load(); }, []);
 
   const totalSize = backups.reduce((s, b) => s + (b.fileSize || 0), 0);
-  const networkOk = health?.fabric === 'ok' && health?.ipfs === 'ok';
+  const fabricOk  = health?.fabric === 'ok';
+  const ipfsOk    = health?.ipfs   === 'ok';
+  const networkOk = fabricOk && ipfsOk;
 
   return (
-    <div className="p-8">
+    <div className="p-6 space-y-5">
 
-      {/* ── Page header ─────────────────────────────────────────────────────── */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-sub">Vue d'ensemble du système de sauvegarde</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={networkOk ? 'badge-green' : 'badge-red'}>
-            <span className={networkOk ? 'dot-live' : 'dot-error'} />
-            {networkOk ? 'Réseau opérationnel' : 'Réseau en erreur'}
-          </span>
-          <button onClick={load} disabled={loading} className="btn-ghost p-2">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
+      {/* Cluster overview */}
+      <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+        <ClusterOverview />
+      </motion.div>
 
-      {/* ── Stat cells ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Sauvegardes"
-          value={loading ? '—' : backups.length}
-          icon={HardDrive}
-          color="cyan"
-        />
-        <StatCard
-          label="Stockage IPFS"
-          value={loading ? '—' : formatSize(totalSize)}
-          icon={Activity}
-          color="purple"
-        />
-        <StatCard
-          label="Réseau"
-          value={loading ? '—' : networkOk ? 'OK' : 'ERR'}
-          icon={Wifi}
-          color={loading ? 'cyan' : networkOk ? 'green' : 'amber'}
-          sub="Fabric + IPFS Cluster"
-        />
-        <StatCard
-          label="Chaincode"
-          value="backup-cc"
-          icon={Shield}
-          color="indigo"
-          sub="canal: backupchannel"
-        />
-      </div>
+      {/* Metric cards */}
+      <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <motion.div variants={fadeUp}>
+          <MetricCard label="Sauvegardes" value={loading ? '—' : backups.length} icon={HardDrive} color="cyan" sparkData={sparkBackups} change={backups.length > 0 ? `+${backups.length} total` : '0'} trend="up" />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <MetricCard label="Stockage IPFS" value={loading ? '—' : formatSize(totalSize)} icon={Activity} color="purple" sparkData={sparkStorage} sub="AES-256 chiffré" />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <MetricCard label="Réseau" value={loading ? '—' : networkOk ? 'OK' : 'ERR'} icon={Wifi} color={loading ? 'cyan' : networkOk ? 'green' : 'amber'} sparkData={sparkNetwork} change={networkOk ? 'Fabric + IPFS' : 'Vérifier les services'} trend={networkOk ? 'up' : 'down'} />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <MetricCard label="Chaincode" value="backup-cc" icon={Shield} color="indigo" sparkData={sparkChaincode} sub="backupchannel" />
+        </motion.div>
+      </motion.div>
 
-      {/* ── Main grid ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Jobs + health */}
+      <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 xl:grid-cols-3 gap-5" style={{ minHeight: 280 }}>
+        <div className="xl:col-span-2"><OngoingJobs key={chartKey} /></div>
+        <SystemHealth />
+      </motion.div>
 
-        {/* Recent backups */}
+      {/* Charts */}
+      <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 xl:grid-cols-2 gap-5" style={{ minHeight: 240 }}>
+        <BackupSizesChart key={chartKey} />
+        <ThroughputChart />
+      </motion.div>
+
+      {/* Recent backups table + Upload */}
+      <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
         <div className="lg:col-span-2 panel">
           <div className="panel-header">
             <span className="panel-title">Sauvegardes récentes</span>
-            <span className="text-xs text-ink-300 font-mono">{backups.length} total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-ink-300 font-mono">{backups.length} total</span>
+              <button onClick={load} disabled={loading} className="p-1.5 text-ink-400 hover:text-brand hover:bg-brand/10 rounded-lg transition-colors">
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="p-12 text-center">
-              <div
-                className="w-6 h-6 rounded-full border-2 border-ink-500 border-t-brand animate-spin mx-auto"
-                style={{ boxShadow: '0 0 10px rgba(0,180,216,0.2)' }}
-              />
+              <div className="w-6 h-6 rounded-full border-2 border-ink-500 border-t-brand animate-spin mx-auto" />
               <p className="text-ink-300 text-xs mt-3">Chargement…</p>
             </div>
           ) : backups.length === 0 ? (
             <div className="p-12 text-center">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <HardDrive size={22} className="text-ink-500" />
-              </div>
+              <HardDrive size={22} className="text-ink-500 mx-auto mb-3" />
               <p className="text-ink-300 text-sm">Aucune sauvegarde — déposez un fichier →</p>
             </div>
           ) : (
@@ -128,7 +146,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Upload zone */}
         <div className="panel">
           <div className="panel-header">
             <div>
@@ -140,8 +157,7 @@ export default function Dashboard() {
             <UploadZone onSuccess={load} />
           </div>
         </div>
-
-      </div>
+      </motion.div>
     </div>
   );
 }
