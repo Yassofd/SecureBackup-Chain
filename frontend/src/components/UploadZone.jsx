@@ -5,8 +5,8 @@ import clsx from 'clsx';
 import { backupsApi } from '../services/api';
 import api from '../services/api';
 
-const CHUNK_SIZE      = 50 * 1024 * 1024;  // 50 Mo par requête
-const CHUNK_THRESHOLD = 100 * 1024 * 1024; // chunked pour fichiers > 100 Mo
+const CHUNK_SIZE      = 5 * 1024 * 1024;   // 5 Mo par requête (résistant au timeout tunnel)
+const CHUNK_THRESHOLD = 20 * 1024 * 1024;  // chunked pour fichiers > 20 Mo
 
 function fmtSize(bytes) {
   if (bytes < 1024)            return `${bytes} o`;
@@ -85,6 +85,7 @@ export default function UploadZone({ onSuccess }) {
               'x-filename':      encodeURIComponent(file.name),
               'x-mime-type':     file.type || 'application/octet-stream',
             },
+            timeout: 120000, // 2 min max par chunk (5 Mo @ 700 Ko/s = 7s — largement suffisant)
             onUploadProgress: (e) => {
               updateProgress(bytesUploaded + (e.loaded || 0), file.size);
             },
@@ -108,7 +109,10 @@ export default function UploadZone({ onSuccess }) {
       onSuccess?.();
     } catch (err) {
       setStatus('error');
-      setMessage(err.response?.data?.error || "Échec de l'upload");
+      const msg = err.response?.data?.error
+        || (err.code === 'ERR_NETWORK' || !err.response ? 'Erreur réseau — vérifiez votre connexion et réessayez' : null)
+        || `Erreur ${err.response?.status} — réessayez`;
+      setMessage(msg);
       reset();
     }
   }, [onSuccess, updateProgress]);
