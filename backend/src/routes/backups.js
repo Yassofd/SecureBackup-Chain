@@ -79,6 +79,7 @@ router.post('/', requireRole('admin', 'responsable'), async (req, res, next) => 
           res.status(201).json({ backupId: entry.backupId, cid: entry.cid, txId: entry.txId });
           resolve();
         } catch (err) {
+          fileStream.destroy(); // libère busboy — évite le blocage par backpressure
           reject(err);
         }
       });

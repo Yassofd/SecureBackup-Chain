@@ -49,14 +49,9 @@ export const backupsApi = {
   list: () => api.get('/backups'),
   get: (id) => api.get(`/backups/${id}`),
   upload: (formData, onProgress) =>
-    api.post('/backups', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: onProgress,
-    }),
+    api.post('/backups', formData, { onUploadProgress: onProgress }),
   verify: (id, formData) =>
-    api.post(`/backups/${id}/verify`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    api.post(`/backups/${id}/verify`, formData),
   download: (id) => api.get(`/backups/${id}/download`, { responseType: 'blob' }),
   restoreRemote: (id, data) => api.post(`/backups/${id}/restore-remote`, data),
   health: () => api.get('/health'),

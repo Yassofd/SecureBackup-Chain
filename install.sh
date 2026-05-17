@@ -169,7 +169,33 @@ CRYPTO_DIR="$NETWORK_DIR/crypto-config"
 ARTIFACTS_DIR="$NETWORK_DIR/channel-artifacts"
 mkdir -p "$ARTIFACTS_DIR"
 
-# Utilise l'image fabric-tools — aucun binaire local requis
+# 3-pré. Binaires Hyperledger Fabric (cryptogen, configtxgen, peer…)
+# Requis par init-network.sh qui s'exécute dans le conteneur backend.
+# Les binaires sont déposés sur l'hôte dans network/fabric-samples/bin/ et
+# sont accessibles dans le conteneur via le bind-mount ./network:/securebackup/network.
+BIN_DIR="$NETWORK_DIR/fabric-samples/bin"
+if [ ! -x "$BIN_DIR/cryptogen" ] || [ ! -x "$BIN_DIR/configtxgen" ]; then
+  info "Téléchargement des binaires Hyperledger Fabric 2.5.4..."
+  mkdir -p "$NETWORK_DIR/fabric-samples"
+  ARCH=$(uname -m)
+  case "$ARCH" in
+    aarch64|arm64) FABRIC_ARCH="arm64" ;;
+    *)             FABRIC_ARCH="amd64"  ;;
+  esac
+  FABRIC_URL="https://github.com/hyperledger/fabric/releases/download/v2.5.4/hyperledger-fabric-linux-${FABRIC_ARCH}-2.5.4.tar.gz"
+  if curl -fsSL --retry 3 "$FABRIC_URL" | tar -xz -C "$NETWORK_DIR/fabric-samples" 2>&1 | grep -v "^$" | sed 's/^/     /'; then
+    chmod +x "$BIN_DIR"/* 2>/dev/null || true
+    log "Binaires Fabric téléchargés ($FABRIC_ARCH)"
+  else
+    warn "Téléchargement des binaires Fabric échoué — init-network.sh pourrait échouer"
+    warn "Téléchargez manuellement : $FABRIC_URL → network/fabric-samples/"
+  fi
+else
+  log "Binaires Fabric déjà présents ($BIN_DIR)"
+fi
+
+# Utilise l'image fabric-tools pour la génération des artifacts (install.sh n'a
+# pas besoin des binaires locaux pour cette étape — elle appelle docker run directement).
 FABRIC_TOOLS="docker run --rm \
   -v $NETWORK_DIR:/network \
   -e FABRIC_CFG_PATH=/network \
@@ -300,9 +326,12 @@ if $BACKEND_READY; then
     warn "Vous pourrez créer votre compte via l'interface web"
   fi
 
-  # Lancer init-network via le backend SSE (si pas encore fait)
-  STATUS_HEALTH=$(curl -s "$API_BASE/health" 2>/dev/null || echo "")
-  if ! echo "$STATUS_HEALTH" | grep -q '"fabric":"ok"'; then
+  # Lancer init-network via le backend SSE si le channel n'est pas encore créé.
+  # On vérifie la présence du fichier block (preuve que le channel existe) plutôt que
+  # le health Fabric — le gateway se connecte au peer sans vérifier l'existence du channel,
+  # donc fabric:ok ne garantit pas que backupchannel est initialisé.
+  BLOCK_FILE="$SCRIPT_DIR/network/channel-artifacts/backupchannel.block"
+  if [ ! -f "$BLOCK_FILE" ]; then
     info "Lancement de l'initialisation Fabric (cela prend 2-3 minutes)..."
     LOGIN_RESP=$(curl -s -X POST "$API_BASE/auth/login" \
       -H "Content-Type: application/json" \
@@ -317,6 +346,8 @@ if $BACKEND_READY; then
       CURL_PID=$!
       wait $CURL_PID 2>/dev/null || true
     fi
+  else
+    info "Channel backupchannel déjà initialisé — étape ignorée"
   fi
 fi
 
