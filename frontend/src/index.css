@@ -146,3 +146,33 @@
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
 }
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@layer utilities {
+  .glass-surface {
+    background: rgba(19, 19, 40, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .shadow-glass {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+
+  .shadow-glass-md {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 4px 24px rgba(0, 0, 0, 0.65),
+      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  }
+
+  .status-pulse {
+    animation: statusPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}

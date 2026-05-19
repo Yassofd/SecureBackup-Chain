@@ -4,7 +4,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 .PHONY: help install start stop restart status logs logs-backend logs-fabric \
-        backup update shell-backend shell-db reset-password purge
+        backup update shell-backend shell-db reset-password purge init-network
 
 # Couleurs
 BOLD  := $(shell tput bold 2>/dev/null || echo '')
@@ -88,8 +88,16 @@ update: ## Mettre à jour l'application (pull + rebuild + restart)
 
 init-network: ## Ré-initialiser le réseau Fabric (si le canal n'existe pas encore)
 	@echo "  → Initialisation du réseau Fabric..."
-	@bash network/init-network.sh
-	@echo "  ✓ Réseau Fabric initialisé"
+	@HOST_PROJECT_DIR=$(PWD) DOCKER_NETWORK=securebackup-net bash network/init-network.sh
+	@echo "  → Rechargement du chaincode avec le nouveau CHAINCODE_ID..."
+	@docker compose up -d --force-recreate chaincode
+	@echo "  → Redémarrage du backend..."
+	@docker compose restart backend
+	@echo "  → Attente du backend (10s)..."
+	@sleep 10
+	@curl -sf http://localhost:$${HTTP_PORT:-3000}/api/health > /dev/null 2>&1 \
+		&& echo "  ✓ Réseau Fabric initialisé et backend opérationnel" \
+		|| echo "  ✓ Réseau Fabric initialisé (vérifiez make status)"
 
 reset-password: ## Réinitialiser le mot de passe admin (SBC_ADMIN_EMAIL + SBC_NEW_PASSWORD requis)
 	@[ -n "$$SBC_ADMIN_EMAIL" ] || (echo "Définissez SBC_ADMIN_EMAIL=<email>"; exit 1)
