@@ -75,6 +75,7 @@ if $NON_INTERACTIVE; then
   ADMIN_EMAIL="${SBC_ADMIN_EMAIL:-admin@securebackup.local}"
   ADMIN_PASSWORD="${SBC_ADMIN_PASSWORD:-$(openssl rand -base64 16)}"
   HTTP_PORT="${SBC_PORT:-80}"
+  NODE1_IP="${SBC_NODE1_IP:-}"
   DB_PASSWORD="${SBC_DB_PASSWORD:-$(openssl rand -base64 24)}"
 else
   echo ""
@@ -94,12 +95,16 @@ else
   read -rp "  Port HTTP [80] : " HTTP_PORT
   HTTP_PORT="${HTTP_PORT:-80}"
 
+  read -rp "  IP publique de ce serveur (laisser vide si local) : " NODE1_IP
+  NODE1_IP="${NODE1_IP:-}"
+
   DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
 fi
 
 log "Organisation : $ORG_NAME"
 log "Admin : $ADMIN_EMAIL"
 log "Port : $HTTP_PORT"
+[ -n "${NODE1_IP:-}" ] && log "IP serveur : $NODE1_IP"
 
 # ── [2] Génération des secrets ───────────────────────────────────────────────
 step "2/7" "Génération des clés de sécurité"
@@ -135,6 +140,7 @@ cat > "$SCRIPT_DIR/.env" <<EOF
 # CONSERVER CE FICHIER EN LIEU SÛR — perte = données irrécupérables.
 
 HTTP_PORT=${HTTP_PORT}
+NODE1_IP=${NODE1_IP:-}
 DB_USER=securebackup
 DB_PASSWORD=${DB_PASSWORD}
 JWT_SECRET=${JWT_SECRET}

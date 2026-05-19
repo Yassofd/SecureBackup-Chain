@@ -23,6 +23,11 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+// ── GET /api/deployment/config ────────────────────────────────────────────────
+router.get('/config', (req, res) => {
+  res.json({ node1Ip: process.env.NODE1_IP || '' });
+});
+
 // ── GET /api/deployment/nodes ─────────────────────────────────────────────────
 router.get('/nodes', async (req, res, next) => {
   try {

@@ -37,6 +37,13 @@ function DeployModal({ onClose, onSuccess }) {
   const logsRef = useRef(null);
 
   useEffect(() => {
+    fetch(`${BASE}/deployment/config`, { headers: { Authorization: `Bearer ${token()}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.node1Ip) setForm((f) => ({ ...f, node1Ip: d.node1Ip })); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
   }, [events]);
 
