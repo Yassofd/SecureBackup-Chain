@@ -1,12 +1,27 @@
 'use strict';
+const fs  = require('fs');
 const env = require('../config/env');
 const app = require('./app');
 const logger = require('./utils/logger');
+const { isInitialized, INIT_FILE } = require('./middleware/require-initialized');
 
 const PORT = env.PORT;
 
+async function syncInitState() {
+  if (!isInitialized()) return;
+  try {
+    const db    = require('./services/db');
+    const count = await db.user.count({ where: { role: 'admin' } });
+    if (count === 0) {
+      fs.truncateSync(INIT_FILE, 0);
+      logger.warn('initialized.json réinitialisé — aucun admin trouvé en base (volumes recréés ?)');
+    }
+  } catch (_) {}
+}
+
 const server = app.listen(PORT, async () => {
   logger.info(`API démarrée sur le port ${PORT}`, { env: env.NODE_ENV });
+  await syncInitState();
   const scheduler = require('./services/scheduler');
   await scheduler.loadAll();
   const monitoring = require('./services/monitoring');

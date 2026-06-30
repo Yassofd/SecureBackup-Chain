@@ -1,6 +1,6 @@
 FROM node:18-alpine
 
-RUN apk add --no-cache postgresql-client openssl bash docker-cli
+RUN apk add --no-cache postgresql-client openssl bash docker-cli docker-cli-compose
 
 WORKDIR /securebackup/backend
 

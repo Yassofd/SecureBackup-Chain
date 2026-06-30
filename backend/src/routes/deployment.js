@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');
 const requireRole    = require('../middleware/role');
-const { deployNode, STEPS } = require('../services/node-deployer');
+const { deployNode, stopNode, STEPS } = require('../services/node-deployer');
 const db = require('../services/db');
 
 const router = Router();
@@ -14,7 +14,7 @@ router.use(authMiddleware);
 
 const NETWORK_DIR = path.resolve(__dirname, '../../../network');
 
-// In-memory job store
+// In-memory job store — nettoyage des jobs terminés après 30 min
 const jobs = new Map();
 setInterval(() => {
   const limit = Date.now() - 30 * 60 * 1000;
@@ -22,11 +22,6 @@ setInterval(() => {
     if (job.status !== 'running' && job.createdAt < limit) jobs.delete(id);
   }
 }, 5 * 60 * 1000);
-
-// ── GET /api/deployment/config ────────────────────────────────────────────────
-router.get('/config', (req, res) => {
-  res.json({ node1Ip: process.env.NODE1_IP || '' });
-});
 
 // ── GET /api/deployment/nodes ─────────────────────────────────────────────────
 router.get('/nodes', async (req, res, next) => {
@@ -37,50 +32,37 @@ router.get('/nodes', async (req, res, next) => {
 });
 
 // ── POST /api/deployment/nodes ────────────────────────────────────────────────
-// Lance le déploiement SSH d'un nœud. orgNum est auto-assigné (max+1).
+// Lance le déploiement local d'un nœud Docker. orgNum est auto-assigné.
 router.post('/nodes', requireRole('admin'), async (req, res, next) => {
   try {
-    const { sshHost, sshPort = 22, sshUser, sshPassword, sshKey, nodeIp, node1Ip, chaincodeId } = req.body;
-
-    if (!sshHost || !sshUser || (!sshPassword && !sshKey)) {
-      return res.status(400).json({ error: 'sshHost, sshUser et sshPassword/sshKey requis' });
-    }
-    if (!nodeIp) {
-      return res.status(400).json({ error: "L'IP publique du nœud distant (nodeIp) est obligatoire" });
-    }
-    if (!node1Ip) {
-      return res.status(400).json({ error: "L'IP du serveur principal (node1Ip) est obligatoire pour les extra_hosts" });
-    }
+    const { chaincodeId } = req.body;
 
     // Auto-assigner l'orgNum suivant
-    const last = await db.fabricNode.findFirst({ orderBy: { orgNum: 'desc' } });
+    const last   = await db.fabricNode.findFirst({ orderBy: { orgNum: 'desc' } });
     const orgNum = (last?.orgNum ?? 1) + 1;
 
-    // Charger les nœuds déjà déployés pour le .env et les extra_hosts
-    const existing = await db.fabricNode.findMany({ select: { orgNum: true, ip: true } });
-
-    // Ajouter Org1 (local) avec son IP réelle si pas encore en DB
-    const knownNodes = existing.some((n) => n.orgNum === 1)
+    const existing    = await db.fabricNode.findMany({ select: { orgNum: true, ip: true } });
+    const knownNodes  = existing.some((n) => n.orgNum === 1)
       ? existing
-      : [{ orgNum: 1, ip: node1Ip }, ...existing];
+      : [{ orgNum: 1, ip: '127.0.0.1' }, ...existing];
 
-    // Créer l'entrée DB en statut deploying
     const { getPorts, getOrgNames } = require('../services/port-allocator');
     const ports   = getPorts(orgNum);
     const { org } = getOrgNames(orgNum);
+
     const node = await db.fabricNode.create({
       data: {
         orgNum,
-        orgName: org,
-        host:    sshHost,
-        ip:      nodeIp,
-        sshUser,
+        orgName:     org,
+        host:        'localhost',
+        ip:          '127.0.0.1',
+        sshUser:     'local',
         peerPort:    ports.peer,
         ordererPort: ports.orderer,
         caPort:      ports.ca,
         ipfsPort:    ports.ipfs,
         couchPort:   ports.couchHost,
-        status: 'deploying',
+        status:      'deploying',
       },
     });
 
@@ -89,10 +71,10 @@ router.post('/nodes', requireRole('admin'), async (req, res, next) => {
     jobs.set(jobId, job);
 
     deployNode(
-      { orgNum, sshHost, sshPort: Number(sshPort), sshUser, sshPassword, sshKey, nodeIp, node1Ip, knownNodes, chaincodeId },
+      { orgNum, knownNodes, chaincodeId },
       (event) => {
         job.events.push({ ...event, ts: new Date().toISOString() });
-        if (event.success) job.status = 'done';
+        if (event.success)          job.status = 'done';
         if (event.step === 'error') job.status = 'error';
       },
     ).then(async (result) => {
@@ -111,9 +93,14 @@ router.post('/nodes', requireRole('admin'), async (req, res, next) => {
 });
 
 // ── DELETE /api/deployment/nodes/:id ─────────────────────────────────────────
+// Arrête les conteneurs locaux et supprime l'entrée DB.
 router.delete('/nodes/:id', requireRole('admin'), async (req, res, next) => {
   try {
-    await db.fabricNode.delete({ where: { id: req.params.id } });
+    const node = await db.fabricNode.findUnique({ where: { id: req.params.id } });
+    if (node) {
+      await stopNode(node.orgNum).catch(() => {});
+      await db.fabricNode.delete({ where: { id: node.id } });
+    }
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -130,6 +117,7 @@ router.get('/jobs/:id/stream', (req, res) => {
   res.flushHeaders();
 
   let cursor = 0;
+  let timer;
   const flush = () => {
     while (cursor < job.events.length) {
       res.write(`data: ${JSON.stringify(job.events[cursor])}\n\n`);
@@ -142,7 +130,7 @@ router.get('/jobs/:id/stream', (req, res) => {
     }
   };
   flush();
-  const timer = setInterval(flush, 300);
+  timer = setInterval(flush, 300);
   req.on('close', () => clearInterval(timer));
 });
 

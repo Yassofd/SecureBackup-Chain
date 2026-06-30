@@ -253,9 +253,9 @@ services:
       HOST_PROJECT_DIR: ${PWD}
       DOCKER_NETWORK: securebackup-net
     volumes:
-      - ./network/crypto-config:/securebackup/network/crypto-config:ro
+      - ./network/crypto-config:/securebackup/network/crypto-config
       - ./network/channel-artifacts:/securebackup/network/channel-artifacts
-      - ./network:/securebackup/network:ro
+      - ./network:/securebackup/network
       - ./backend/config/initialized.json:/securebackup/backend/config/initialized.json
       - backend-wallet:/securebackup/wallet
       - backend-logs:/securebackup/logs

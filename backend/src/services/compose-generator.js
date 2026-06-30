@@ -1,55 +1,44 @@
 'use strict';
 
+const path = require('path');
 const { getPorts, getOrgNames } = require('./port-allocator');
 
 /**
- * Génère le contenu docker-compose YAML pour OrgN.
- * @param {object} opts
- * @param {number}   opts.orgNum      - numéro de l'org (>= 2)
- * @param {object[]} opts.otherNodes  - [ { orgNum, ip } ] — nœuds déjà déployés (pour extra_hosts)
+ * Génère le contenu docker-compose YAML pour OrgN en mode mono-hôte.
+ * Les conteneurs rejoignent le réseau Docker existant `securebackup-net`.
+ *
+ * @param {{ orgNum: number, otherNodes?: {orgNum,ip}[], hostNetworkDir?: string }} opts
  */
 function generateCompose(opts) {
-  const { orgNum, otherNodes = [] } = opts;
+  const { orgNum } = opts;
   const { org, lower, mspId, domain } = getOrgNames(orgNum);
+
+  // Chemins hôte absolus pour les bind mounts (le daemon Docker tourne sur l'hôte,
+  // il ne connaît pas les chemins internes /securebackup/network/).
+  const HOST_PROJECT_DIR = process.env.HOST_PROJECT_DIR || path.resolve(__dirname, '../../../../');
+  const hostNet = opts.hostNetworkDir || path.join(HOST_PROJECT_DIR, 'network');
   const p = getPorts(orgNum);
 
-  const couchName    = `couchdb${orgNum - 1}`;
-  const ipfsName     = `ipfs${orgNum - 1}`;
-  const clusterName  = `cluster${orgNum - 1}`;
-  const ordererVol   = `orderer${orgNum}-data`;
-  const peerVol      = `peer0-org${orgNum}-data`;
-  const ipfsVol      = `ipfs${orgNum - 1}-data`;
-  const clusterVol   = `cluster${orgNum - 1}-data`;
+  const couchName   = `couchdb${orgNum - 1}`;
+  const ipfsName    = `ipfs${orgNum - 1}`;
+  const clusterName = `cluster${orgNum - 1}`;
+  const ordererVol  = `orderer${orgNum}-data`;
+  const peerVol     = `peer0-org${orgNum}-data`;
+  const ipfsVol     = `ipfs${orgNum - 1}-data`;
+  const clusterVol  = `cluster${orgNum - 1}-data`;
 
-  // extra_hosts : tous les autres noeuds (sauf soi-même)
-  const extraHosts = otherNodes
-    .filter((n) => n.orgNum !== orgNum)
-    .flatMap((n) => {
-      const { lower: ol } = getOrgNames(n.orgNum);
-      return [
-        `"orderer.${ol}.example.com:${n.ip}"`,
-        `"peer0.${ol}.example.com:${n.ip}"`,
-        `"ca.${ol}.example.com:${n.ip}"`,
-      ];
-    });
-
-  const extraHostsBlock = extraHosts.length
-    ? `x-extra-hosts: &extra-hosts\n  extra_hosts:\n${extraHosts.map((h) => `    - ${h}`).join('\n')}\n`
-    : '';
-
-  const anchorRef = extraHosts.length ? '\n    <<: *extra-hosts' : '';
-
-  return `# Auto-generated — Nœud ${orgNum} (${org})
+  return `# Auto-generated — Nœud ${orgNum} (${org}) — mono-hôte Docker
 networks:
-  fabric:
-    name: securebackup-fabric
+  securebackup-net:
+    external: true
 
-${extraHostsBlock}
 services:
 
   orderer.${domain}:
     image: hyperledger/fabric-orderer:2.5.4
     container_name: orderer.${domain}
+    hostname: orderer.${domain}
+    restart: unless-stopped
     environment:
       - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
@@ -66,18 +55,20 @@ services:
       - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
       - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
     volumes:
-      - ./channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
-      - ./crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/msp:/var/hyperledger/orderer/msp
-      - ./crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/tls:/var/hyperledger/orderer/tls
+      - ${hostNet}/channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block:ro
+      - ${hostNet}/crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/msp:/var/hyperledger/orderer/msp:ro
+      - ${hostNet}/crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/tls:/var/hyperledger/orderer/tls:ro
       - ${ordererVol}:/var/hyperledger/production/orderer
     ports:
-      - "${p.orderer}:${p.orderer}"${anchorRef}
+      - "${p.orderer}:${p.orderer}"
     networks:
-      - fabric
+      - securebackup-net
 
   ca.${domain}:
     image: hyperledger/fabric-ca:1.5.7
     container_name: ca.${domain}
+    hostname: ca.${domain}
+    restart: unless-stopped
     environment:
       - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
       - FABRIC_CA_SERVER_CA_NAME=ca-${lower}
@@ -85,29 +76,35 @@ services:
       - FABRIC_CA_SERVER_PORT=${p.ca}
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
-      - ./crypto-config/peerOrganizations/${domain}/ca/:/etc/hyperledger/fabric-ca-server-config
+      - ${hostNet}/crypto-config/peerOrganizations/${domain}/ca/:/etc/hyperledger/fabric-ca-server-config:ro
     ports:
-      - "${p.ca}:${p.ca}"${anchorRef}
+      - "${p.ca}:${p.ca}"
     networks:
-      - fabric
+      - securebackup-net
 
   ${couchName}:
     image: couchdb:3.3
     container_name: ${couchName}
+    restart: unless-stopped
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
     ports:
       - "${p.couchHost}:5984"
     networks:
-      - fabric
+      - securebackup-net
 
   peer0.${domain}:
     image: hyperledger/fabric-peer:2.5.4
     container_name: peer0.${domain}
+    hostname: peer0.${domain}
+    restart: unless-stopped
+    depends_on:
+      - orderer.${domain}
+      - ${couchName}
     environment:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=securebackup-fabric
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=securebackup-net
       - FABRIC_LOGGING_SPEC=INFO
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
@@ -128,20 +125,18 @@ services:
       - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ./crypto-config/peerOrganizations/${domain}/peers/peer0.${domain}/msp:/etc/hyperledger/fabric/msp
-      - ./crypto-config/peerOrganizations/${domain}/peers/peer0.${domain}/tls:/etc/hyperledger/fabric/tls
+      - ${hostNet}/crypto-config/peerOrganizations/${domain}/peers/peer0.${domain}/msp:/etc/hyperledger/fabric/msp:ro
+      - ${hostNet}/crypto-config/peerOrganizations/${domain}/peers/peer0.${domain}/tls:/etc/hyperledger/fabric/tls:ro
       - ${peerVol}:/var/hyperledger/production
     ports:
       - "${p.peer}:${p.peer}"
-    depends_on:
-      - orderer.${domain}
-      - ${couchName}${anchorRef}
     networks:
-      - fabric
+      - securebackup-net
 
   ${ipfsName}:
     image: ipfs/kubo:latest
     container_name: ${ipfsName}
+    restart: unless-stopped
     environment:
       - IPFS_PROFILE=server
     volumes:
@@ -151,11 +146,12 @@ services:
       - "${p.ipfs}:5001"
       - "${p.gateway}:8080"
     networks:
-      - fabric
+      - securebackup-net
 
   ${clusterName}:
     image: ipfs/ipfs-cluster:latest
     container_name: ${clusterName}
+    restart: unless-stopped
     depends_on:
       - ${ipfsName}
     environment:
@@ -171,7 +167,7 @@ services:
     volumes:
       - ${clusterVol}:/data/ipfs-cluster
     networks:
-      - fabric
+      - securebackup-net
 
 volumes:
   ${ordererVol}:

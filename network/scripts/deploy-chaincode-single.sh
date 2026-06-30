@@ -64,23 +64,32 @@ $(peer1) peer lifecycle chaincode install \
   /etc/hyperledger/channel-artifacts/${CC_NAME}.tar.gz 2>&1 | grep -v "^$" || true
 
 echo "→ [3/5] Récupération Package ID..."
+# Prend le dernier package installé portant ce label (évite les multi-lignes si plusieurs installs)
 PACKAGE_ID=$($(peer1) peer lifecycle chaincode queryinstalled 2>&1 \
   | grep "${CC_NAME}_${CC_VERSION}" \
+  | tail -1 \
   | sed 's/.*Package ID: \([^,]*\),.*/\1/')
 echo "   Package ID : $PACKAGE_ID"
 
 if [ -z "$PACKAGE_ID" ]; then
-  echo "WARN: Package ID introuvable — chaincode peut-être déjà installé avec autre version"
+  echo "WARN: Package ID introuvable — tentative sur tous les packages installés"
   PACKAGE_ID=$($(peer1) peer lifecycle chaincode queryinstalled 2>&1 \
-    | grep "Package ID:" | head -1 | sed 's/.*Package ID: \([^,]*\),.*/\1/')
+    | grep "Package ID:" | tail -1 | sed 's/.*Package ID: \([^,]*\),.*/\1/')
   echo "   Package ID détecté : $PACKAGE_ID"
 fi
 
 [ -z "$PACKAGE_ID" ] && echo "ERROR: Impossible de trouver le Package ID" && exit 1
 
-# Mettre à jour CHAINCODE_ID dans le .env racine (chemin local dans le conteneur)
+# Mettre à jour CHAINCODE_ID dans le .env racine
 if [ -f "$ROOT_DIR/.env" ]; then
-  sed -i "s|^CHAINCODE_ID=.*|CHAINCODE_ID=$PACKAGE_ID|" "$ROOT_DIR/.env"
+  python3 -c "
+import re, sys
+content = open('$ROOT_DIR/.env').read()
+content = re.sub(r'^CHAINCODE_ID=.*', 'CHAINCODE_ID=$PACKAGE_ID', content, flags=re.MULTILINE)
+open('$ROOT_DIR/.env', 'w').write(content)
+" 2>/dev/null || \
+  awk -v id="$PACKAGE_ID" '/^CHAINCODE_ID=/{print "CHAINCODE_ID="id; next}1' \
+    "$ROOT_DIR/.env" > "$ROOT_DIR/.env.tmp" && mv "$ROOT_DIR/.env.tmp" "$ROOT_DIR/.env"
   echo "   .env mis à jour : CHAINCODE_ID=$PACKAGE_ID"
 fi
 

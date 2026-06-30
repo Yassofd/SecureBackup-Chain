@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Server, Play, RefreshCw, CheckCircle, XCircle, Clock,
-  Terminal, Plus, X, Key, Lock, AlertTriangle, Trash2, Loader2,
+  Server, Play, CheckCircle, XCircle,
+  Terminal, Plus, X, AlertTriangle, Trash2, Loader2, Package,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { deploymentApi } from '../services/api';
@@ -10,61 +10,37 @@ const BASE  = '/api';
 const token = () => localStorage.getItem('accessToken');
 
 const STATUS_LABEL = { running: 'Actif', deploying: 'Déploiement', error: 'Erreur', stopped: 'Arrêté' };
-const STATUS_COLOR = {
-  running:   'badge-green',
-  deploying: 'badge-amber',
-  error:     'bg-red-500/15 text-red-400 border border-red-500/20 rounded-full px-2 py-0.5 text-xs font-medium',
-  stopped:   'badge-blue',
-};
 
 const NODE_ACCENTS = [
   '#00b4d8', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
   '#3b82f6', '#ec4899', '#14b8a6', '#f97316',
 ];
 
-function DeployModal({ onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    sshHost: '', sshPort: 22, sshUser: 'root',
-    authType: 'password', sshPassword: '', sshKey: '',
-    nodeIp: '', node1Ip: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [jobId,      setJobId]      = useState(null);
-  const [events,     setEvents]     = useState([]);
-  const [status,     setStatus]     = useState('idle');
-  const [progress,   setProgress]   = useState(0);
-  const [assignedOrg, setAssignedOrg] = useState(null);
-  const logsRef = useRef(null);
+const STEP_PCT = {
+  crypto: 10, channel: 25, compose: 40,
+  pull: 65, start: 85, join: 93, ccinstall: 97, done: 100,
+};
 
-  useEffect(() => {
-    fetch(`${BASE}/deployment/config`, { headers: { Authorization: `Bearer ${token()}` } })
-      .then((r) => r.json())
-      .then((d) => { if (d.node1Ip) setForm((f) => ({ ...f, node1Ip: d.node1Ip })); })
-      .catch(() => {});
-  }, []);
+function DeployModal({ onClose, onSuccess }) {
+  const [status,      setStatus]      = useState('idle');
+  const [jobId,       setJobId]       = useState(null);
+  const [events,      setEvents]      = useState([]);
+  const [progress,    setProgress]    = useState(0);
+  const [assignedOrg, setAssignedOrg] = useState(null);
+  const [submitting,  setSubmitting]  = useState(false);
+  const logsRef = useRef(null);
 
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
   }, [events]);
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
   const submit = async () => {
-    if (!form.sshHost || !form.sshUser || !form.nodeIp || !form.node1Ip) return;
     setSubmitting(true);
     try {
       const resp = await fetch(`${BASE}/deployment/nodes`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({
-          sshHost:     form.sshHost,
-          sshPort:     form.sshPort,
-          sshUser:     form.sshUser,
-          sshPassword: form.authType === 'password' ? form.sshPassword : undefined,
-          sshKey:      form.authType === 'key'      ? form.sshKey      : undefined,
-          nodeIp:      form.nodeIp,
-          node1Ip:     form.node1Ip,
-        }),
+        body:    JSON.stringify({}),
       });
       const { jobId: id, orgNum } = await resp.json();
       setJobId(id);
@@ -79,7 +55,6 @@ function DeployModal({ onClose, onSuccess }) {
 
   useEffect(() => {
     if (!jobId) return;
-    const STEP_PCT = { connect: 4, crypto: 10, channel: 20, docker: 26, mkdir: 32, certs: 55, artifacts: 62, compose: 67, chaincode: 72, env: 74, pull: 84, start: 92, join: 95, ccinstall: 97, update_node1: 99, done: 100 };
     const reader = fetch(`${BASE}/deployment/jobs/${jobId}/stream`, {
       headers: { Authorization: `Bearer ${token()}` },
     }).then((r) => r.body.getReader());
@@ -97,9 +72,15 @@ function DeployModal({ onClose, onSuccess }) {
           if (!line) continue;
           try {
             const evt = JSON.parse(line);
-            if (evt.log)  setEvents((e) => [...e, { type: evt.step === 'error' ? 'ERROR' : evt.success ? 'SUCCESS' : evt.warn ? 'WARN' : 'LOG', text: evt.log }]);
+            if (evt.log) {
+              const type = evt.step === 'error' ? 'ERROR' : evt.success ? 'SUCCESS' : evt.warn ? 'WARN' : 'LOG';
+              setEvents((e) => [...e, { type, text: evt.log }]);
+            }
             if (evt.step) setProgress(STEP_PCT[evt.step] || 0);
-            if (evt.done) { setStatus(evt.status === 'error' ? 'error' : 'done'); if (evt.status !== 'error') onSuccess?.(); }
+            if (evt.done) {
+              setStatus(evt.status === 'error' ? 'error' : 'done');
+              if (evt.status !== 'error') onSuccess?.();
+            }
           } catch (_) {}
         }
         read();
@@ -110,77 +91,35 @@ function DeployModal({ onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-ink-700 border border-ink-500 rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+      <div className="bg-ink-700 border border-ink-500 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-ink-500">
           <h2 className="text-sm font-semibold text-ink-50">
-            Déployer un nouveau nœud
+            Ajouter un nœud
             {assignedOrg && <span className="ml-2 text-xs font-normal text-brand">(Org{assignedOrg})</span>}
           </h2>
-          <button onClick={onClose} className="p-1.5 text-ink-300 hover:text-ink-50 hover:bg-ink-600 rounded-lg transition-colors"><X size={15} /></button>
+          <button onClick={onClose} className="p-1.5 text-ink-300 hover:text-ink-50 hover:bg-ink-600 rounded-lg transition-colors">
+            <X size={15} />
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-6 space-y-5">
           {status === 'idle' && (
-            <>
-              <div className="bg-brand/10 border border-brand/20 rounded-lg p-3 text-xs text-brand/90">
-                Le numéro d'org est assigné automatiquement. Renseignez les IPs des deux machines et les accès SSH de la machine distante.
+            <div className="space-y-4">
+              <div className="bg-brand/10 border border-brand/20 rounded-lg p-4 text-xs text-brand/90 space-y-1.5">
+                <p className="font-semibold text-brand">Déploiement mono-hôte Docker</p>
+                <p>Un nouveau nœud Fabric (orderer + peer + CA) et IPFS sera créé sous forme de conteneurs Docker sur cette machine.</p>
+                <p>Le numéro d'organisation est assigné automatiquement. Aucune configuration SSH requise.</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">IP de ce serveur (Nœud 1) *</label>
-                  <input value={form.node1Ip} onChange={(e) => set('node1Ip', e.target.value)}
-                    className="input font-mono" placeholder="192.168.1.10" />
-                </div>
-                <div>
-                  <label className="label">IP du nœud distant *</label>
-                  <input value={form.nodeIp} onChange={(e) => set('nodeIp', e.target.value)}
-                    className="input font-mono" placeholder="192.168.1.20" />
-                </div>
+              <div className="bg-ink-800 border border-ink-600 rounded-lg p-3 text-xs font-mono text-ink-300 space-y-1">
+                <p className="text-ink-400 text-[10px] uppercase tracking-wider mb-2">Ce qui sera créé</p>
+                <p>• orderer.orgN.example.com</p>
+                <p>• peer0.orgN.example.com</p>
+                <p>• ca.orgN.example.com</p>
+                <p>• ipfsN / clusterN</p>
+                <p className="text-ink-500 mt-1">Réseau : securebackup-net (partagé)</p>
               </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="label">Hôte SSH *</label>
-                  <input value={form.sshHost} onChange={(e) => set('sshHost', e.target.value)}
-                    className="input font-mono" placeholder="192.168.1.20" />
-                </div>
-                <div>
-                  <label className="label">Port SSH</label>
-                  <input type="number" value={form.sshPort} onChange={(e) => set('sshPort', Number(e.target.value))}
-                    className="input" />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Utilisateur SSH *</label>
-                <input value={form.sshUser} onChange={(e) => set('sshUser', e.target.value)}
-                  className="input" placeholder="root" />
-              </div>
-
-              <div>
-                <label className="label mb-2">Authentification</label>
-                <div className="flex gap-2 mb-3">
-                  {[['password', 'Mot de passe', Lock], ['key', 'Clé privée', Key]].map(([val, label, Icon]) => (
-                    <button key={val} onClick={() => set('authType', val)}
-                      className={clsx('flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors',
-                        form.authType === val
-                          ? 'border-brand bg-brand/10 text-brand'
-                          : 'border-ink-500 text-ink-300 hover:border-ink-400 hover:text-ink-100')}>
-                      <Icon size={12} /> {label}
-                    </button>
-                  ))}
-                </div>
-                {form.authType === 'password'
-                  ? <input type="password" value={form.sshPassword} onChange={(e) => set('sshPassword', e.target.value)}
-                      className="input" placeholder="Mot de passe SSH" />
-                  : <textarea value={form.sshKey} onChange={(e) => set('sshKey', e.target.value)}
-                      placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;…" rows={4}
-                      className="w-full bg-ink-600 border border-ink-500 rounded-lg px-3 py-2 text-xs font-mono text-ink-100 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/60 resize-none" />
-                }
-              </div>
-            </>
+            </div>
           )}
 
           {status !== 'idle' && (
@@ -194,9 +133,11 @@ function DeployModal({ onClose, onSuccess }) {
                 <span className="font-mono">{progress}%</span>
               </div>
               <div className="h-1.5 bg-ink-600 rounded-full overflow-hidden">
-                <div className={clsx('h-full rounded-full transition-all duration-500',
-                  status === 'error' ? 'bg-red-500' : status === 'done' ? 'bg-emerald-500' : 'bg-brand')}
-                  style={{ width: `${progress}%` }} />
+                <div
+                  className={clsx('h-full rounded-full transition-all duration-500',
+                    status === 'error' ? 'bg-red-500' : status === 'done' ? 'bg-emerald-500' : 'bg-brand')}
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             </div>
           )}
@@ -205,13 +146,16 @@ function DeployModal({ onClose, onSuccess }) {
             <div className="bg-ink-900 border border-ink-600 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Terminal size={11} className="text-ink-400" />
-                <span className="text-xs text-ink-400 font-semibold uppercase tracking-wider">Logs SSH</span>
+                <span className="text-xs text-ink-400 font-semibold uppercase tracking-wider">Logs</span>
                 {status === 'running' && <Loader2 size={10} className="text-brand animate-spin ml-auto" />}
               </div>
-              <div ref={logsRef} className="max-h-52 overflow-y-auto space-y-0.5 font-mono text-xs">
+              <div ref={logsRef} className="max-h-56 overflow-y-auto space-y-0.5 font-mono text-xs">
                 {events.map((e, i) => (
                   <div key={i} className={clsx(
-                    e.type === 'SUCCESS' ? 'text-emerald-400' : e.type === 'ERROR' ? 'text-red-400' : e.type === 'WARN' ? 'text-amber-400' : 'text-ink-200',
+                    e.type === 'SUCCESS' ? 'text-emerald-400'
+                    : e.type === 'ERROR' ? 'text-red-400'
+                    : e.type === 'WARN'  ? 'text-amber-400'
+                    : 'text-ink-200',
                   )}>{e.text}</div>
                 ))}
                 {status === 'running' && <span className="text-ink-500 animate-pulse">▋</span>}
@@ -225,10 +169,10 @@ function DeployModal({ onClose, onSuccess }) {
             {status === 'done' ? 'Fermer' : 'Annuler'}
           </button>
           {status === 'idle' && (
-            <button onClick={submit}
-              disabled={submitting || !form.sshHost || !form.sshUser || !form.nodeIp || !form.node1Ip}
-              className="btn-primary flex items-center gap-2">
-              {submitting ? <><Loader2 size={13} className="animate-spin" /> Envoi…</> : <><Play size={13} /> Déployer</>}
+            <button onClick={submit} disabled={submitting} className="btn-primary flex items-center gap-2">
+              {submitting
+                ? <><Loader2 size={13} className="animate-spin" /> Lancement…</>
+                : <><Play size={13} /> Déployer</>}
             </button>
           )}
         </div>
@@ -241,7 +185,7 @@ function NodeCard({ node, accent, onDelete }) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm(`Supprimer Org${node.orgNum} du registre ? (les conteneurs distants ne seront pas arrêtés)`)) return;
+    if (!confirm(`Supprimer Org${node.orgNum} et arrêter ses conteneurs Docker ?`)) return;
     setDeleting(true);
     try {
       await deploymentApi.deleteNode(node.id);
@@ -249,7 +193,7 @@ function NodeCard({ node, accent, onDelete }) {
     } catch (_) { setDeleting(false); }
   };
 
-  const statusCls = STATUS_COLOR[node.status] || STATUS_COLOR.stopped;
+  const isLocal = node.orgNum === 1;
 
   return (
     <div className="card p-4 space-y-3 hover:border-ink-400 transition-colors">
@@ -258,8 +202,9 @@ function NodeCard({ node, accent, onDelete }) {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ background: accent }} />
             <p className="text-xs font-bold uppercase tracking-wide text-ink-50">Nœud {node.orgNum}</p>
+            {isLocal && <span className="text-[10px] text-ink-400 bg-ink-600 px-1.5 py-0.5 rounded">principal</span>}
           </div>
-          <p className="text-xs text-ink-400 font-mono mt-0.5">{node.ip}</p>
+          <p className="text-xs text-ink-400 font-mono mt-0.5">localhost</p>
         </div>
         <span className="text-xs px-2 py-0.5 rounded-full font-medium border"
           style={{ color: accent, background: `${accent}18`, borderColor: `${accent}30` }}>
@@ -282,12 +227,22 @@ function NodeCard({ node, accent, onDelete }) {
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-ink-600">
-        <span className={statusCls}>{STATUS_LABEL[node.status] || node.status}</span>
-        <button onClick={handleDelete} disabled={deleting}
-          className="p-1.5 text-ink-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
-          title="Retirer du registre">
-          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-        </button>
+        <span className={clsx(
+          'text-xs px-2 py-0.5 rounded-full font-medium border',
+          node.status === 'running'   ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+          : node.status === 'deploying' ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+          : node.status === 'error'     ? 'text-red-400 bg-red-400/10 border-red-400/20'
+          : 'text-ink-400 bg-ink-600 border-ink-500',
+        )}>
+          {STATUS_LABEL[node.status] || node.status}
+        </span>
+        {!isLocal && (
+          <button onClick={handleDelete} disabled={deleting}
+            className="p-1.5 text-ink-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
+            title="Arrêter et supprimer ce nœud">
+            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -308,17 +263,19 @@ export default function Deployment() {
 
   useEffect(() => { loadNodes(); }, [loadNodes]);
 
-  const localNode = { orgNum: 1, orgName: 'Org1', ip: 'localhost', status: 'running',
-    peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001 };
-  const allNodes  = nodes.some((n) => n.orgNum === 1) ? nodes : [localNode, ...nodes];
+  const localNode = {
+    orgNum: 1, orgName: 'Org1', ip: '127.0.0.1', status: 'running',
+    peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001,
+  };
+  const allNodes = nodes.some((n) => n.orgNum === 1) ? nodes : [localNode, ...nodes];
 
   return (
     <div className="p-7 max-w-6xl space-y-6">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Déploiement multi-machines</h1>
+          <h1 className="page-title">Nœuds du réseau</h1>
           <p className="page-sub">
-            {allNodes.length} nœud{allNodes.length > 1 ? 's' : ''} dans le réseau — ajoutez-en autant que vous voulez
+            {allNodes.length} nœud{allNodes.length > 1 ? 's' : ''} actif{allNodes.length > 1 ? 's' : ''} — tous sur cet hôte Docker
           </p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-1.5">
@@ -343,13 +300,12 @@ export default function Deployment() {
         </div>
       )}
 
-      <div className="bg-amber-500/8 border border-amber-500/25 rounded-xl p-4">
+      <div className="bg-ink-800 border border-ink-600 rounded-xl p-4">
         <div className="flex items-start gap-2.5">
-          <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-400/90">
-            <p className="font-semibold text-amber-400 mb-1">Ports à ouvrir sur chaque machine distante</p>
-            <p>Orderer, Peer, CA, IPFS sont calculés dynamiquement selon le numéro d'org. Le port SSH (22) doit être accessible depuis ce serveur.</p>
-            <p className="mt-1 font-mono text-amber-400/70">OrgN → Orderer: 6000+N×1000+50 · Peer: +51 · CA: +54 · IPFS: 5000+N</p>
+          <Package size={14} className="text-ink-400 mt-0.5 shrink-0" />
+          <div className="text-xs text-ink-400 space-y-1">
+            <p className="font-semibold text-ink-300">Architecture mono-hôte</p>
+            <p>Chaque nœud tourne dans ses propres conteneurs Docker sur cette machine et partage le réseau <span className="font-mono text-ink-200">securebackup-net</span>. Les ports sont alloués automatiquement (Org2 : Peer 8051, Orderer 8050…).</p>
           </div>
         </div>
       </div>

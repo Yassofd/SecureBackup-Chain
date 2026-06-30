@@ -5,29 +5,43 @@ const fs   = require('fs');
 const os   = require('os');
 const { execSync } = require('child_process');
 
-const NETWORK_DIR  = path.resolve(__dirname, '../../../network');
-const CRYPTO_DIR   = path.join(NETWORK_DIR, 'crypto-config');
-const BIN_DIR      = path.join(NETWORK_DIR, 'fabric-samples', 'bin');
-const CRYPTOGEN    = path.join(BIN_DIR, 'cryptogen');
-const CONFIGTXGEN  = path.join(BIN_DIR, 'configtxgen');
+const NETWORK_DIR = path.resolve(__dirname, '../../../network');
+const CRYPTO_DIR  = path.join(NETWORK_DIR, 'crypto-config');
+
+// Chemin hôte pour les volumes Docker (le backend tourne dans un conteneur,
+// Docker daemon sur l'hôte a besoin du chemin hôte réel).
+const HOST_PROJECT_DIR = process.env.HOST_PROJECT_DIR || path.resolve(NETWORK_DIR, '../..');
+const HOST_CRYPTO      = path.join(HOST_PROJECT_DIR, 'network', 'crypto-config');
 
 /**
- * Génère les certificats pour un nouvel org via `cryptogen extend`.
- * Crée les dossiers dans crypto-config/ordererOrganizations et peerOrganizations.
- * @param {number} orgNum
+ * Lance une commande fabric-tools via `docker run` en utilisant le socket Docker monté.
+ * Compatible Alpine (pas besoin de binaires glibc locaux).
+ */
+function fabricTools(cmd) {
+  const fullCmd = [
+    'docker run --rm',
+    `--network ${process.env.DOCKER_NETWORK || 'securebackup-net'}`,
+    `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
+    '-e FABRIC_CFG_PATH=/etc/hyperledger',
+    'hyperledger/fabric-tools:2.5.4',
+    cmd,
+  ].join(' ');
+  return execSync(fullCmd, { stdio: 'pipe' }).toString();
+}
+
+/**
+ * Génère les certificats pour un nouvel org via `cryptogen extend` (docker run).
  */
 function generateOrgCrypto(orgNum) {
   const lower  = `org${orgNum}`;
   const domain = `${lower}.example.com`;
 
-  // Vérifier si les certs existent déjà
   const peerDir = path.join(CRYPTO_DIR, 'peerOrganizations', domain);
   if (fs.existsSync(peerDir)) {
     return { alreadyExists: true };
   }
 
-  const cryptoYaml = `
-PeerOrgs:
+  const cryptoYaml = `PeerOrgs:
   - Name: Org${orgNum}
     Domain: ${domain}
     EnableNodeOUs: true
@@ -43,16 +57,23 @@ OrdererOrgs:
       - Hostname: orderer
 `;
 
-  const tmpYaml = path.join(os.tmpdir(), `crypto-config-org${orgNum}-${Date.now()}.yaml`);
+  // Écrire le yaml dans crypto-config (accessible dans le conteneur fabric-tools)
+  const tmpYaml = path.join(CRYPTO_DIR, `crypto-config-org${orgNum}-tmp.yaml`);
   fs.writeFileSync(tmpYaml, cryptoYaml);
 
   try {
     execSync(
-      `"${CRYPTOGEN}" extend --config="${tmpYaml}" --input="${CRYPTO_DIR}"`,
+      [
+        'docker run --rm',
+        `--network ${process.env.DOCKER_NETWORK || 'securebackup-net'}`,
+        `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
+        'hyperledger/fabric-tools:2.5.4',
+        `cryptogen extend --config="/etc/hyperledger/crypto-config/crypto-config-org${orgNum}-tmp.yaml" --input="/etc/hyperledger/crypto-config"`,
+      ].join(' '),
       { stdio: 'pipe' },
     );
   } finally {
-    fs.unlinkSync(tmpYaml);
+    fs.existsSync(tmpYaml) && fs.unlinkSync(tmpYaml);
   }
 
   return { alreadyExists: false };
@@ -60,21 +81,17 @@ OrdererOrgs:
 
 /**
  * Génère le JSON de définition de l'org pour configtxlator (channel update).
- * Nécessite un configtx.yaml minimal présent dans le réseau.
- * @param {number} orgNum
- * @returns {object} parsed JSON du bloc configtx pour l'org
  */
 function generateOrgConfigtxJson(orgNum) {
   const lower  = `org${orgNum}`;
   const domain = `${lower}.example.com`;
+  const { getPorts } = require('./port-allocator');
 
-  // configtx minimal pour l'org
-  const configtxYaml = `
-Organizations:
+  const configtxYaml = `Organizations:
   - &Org${orgNum}
     Name: Org${orgNum}MSP
     ID: Org${orgNum}MSP
-    MSPDir: ${CRYPTO_DIR}/peerOrganizations/${domain}/msp
+    MSPDir: /etc/hyperledger/crypto-config/peerOrganizations/${domain}/msp
     Policies:
       Readers:
         Type: Signature
@@ -90,17 +107,24 @@ Organizations:
         Rule: "OR('Org${orgNum}MSP.peer')"
     AnchorPeers:
       - Host: peer0.${domain}
-        Port: ${require('./port-allocator').getPorts(orgNum).peer}
+        Port: ${getPorts(orgNum).peer}
 `;
 
-  const tmpDir  = path.join(os.tmpdir(), `configtx_org${orgNum}_${Date.now()}`);
+  // Écrire le configtx dans un dossier temporaire accessible par le conteneur
+  const tmpName = `configtx_org${orgNum}_${Date.now()}`;
+  const tmpDir  = path.join(CRYPTO_DIR, tmpName);
   fs.mkdirSync(tmpDir, { recursive: true });
-  const tmpYaml = path.join(tmpDir, 'configtx.yaml');
-  fs.writeFileSync(tmpYaml, configtxYaml);
+  fs.writeFileSync(path.join(tmpDir, 'configtx.yaml'), configtxYaml);
 
   try {
     const out = execSync(
-      `"${CONFIGTXGEN}" -configPath "${tmpDir}" -printOrg Org${orgNum}MSP`,
+      [
+        'docker run --rm',
+        `--network ${process.env.DOCKER_NETWORK || 'securebackup-net'}`,
+        `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
+        'hyperledger/fabric-tools:2.5.4',
+        `configtxgen -configPath "/etc/hyperledger/crypto-config/${tmpName}" -printOrg Org${orgNum}MSP`,
+      ].join(' '),
       { stdio: 'pipe' },
     );
     return JSON.parse(out.toString());
@@ -109,4 +133,4 @@ Organizations:
   }
 }
 
-module.exports = { generateOrgCrypto, generateOrgConfigtxJson, CRYPTO_DIR, NETWORK_DIR, BIN_DIR };
+module.exports = { generateOrgCrypto, generateOrgConfigtxJson, CRYPTO_DIR, NETWORK_DIR };
