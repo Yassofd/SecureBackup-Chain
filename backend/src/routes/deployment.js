@@ -5,8 +5,10 @@ const { randomUUID: uuid } = require('crypto');
 const { spawn } = require('child_process');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');
+const logger = require('../utils/logger');
 const requireRole    = require('../middleware/role');
 const { deployNode, stopNode, STEPS } = require('../services/node-deployer');
+const { reconnect } = require('../services/fabric');
 const db = require('../services/db');
 
 const router = Router();
@@ -82,6 +84,10 @@ router.post('/nodes', requireRole('admin'), async (req, res, next) => {
         where: { id: node.id },
         data:  { status: result.success ? 'running' : 'error' },
       });
+      if (result.success) {
+        // Recharger le connection profile avec le nouveau nœud
+        reconnect().catch((e) => logger.warn(`[deployment] reconnect fabric: ${e.message}`));
+      }
     }).catch(async (err) => {
       job.events.push({ step: 'error', label: 'Erreur inattendue', error: err.message, ts: new Date().toISOString() });
       job.status = 'error';
