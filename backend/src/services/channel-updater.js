@@ -4,8 +4,9 @@ const path = require('path');
 const fs   = require('fs');
 const { execSync } = require('child_process');
 
-const { NETWORK_DIR, CRYPTO_DIR, generateOrgConfigtxJson } = require('./crypto-generator');
+const { CRYPTO_DIR, NETWORK_DIR, generateOrgConfigtxJson } = require('./crypto-generator');
 const { getPorts } = require('./port-allocator');
+const logger = require('../utils/logger');
 
 const CHANNEL          = 'backupchannel';
 const DOCKER_NETWORK   = process.env.DOCKER_NETWORK || 'securebackup-net';
@@ -16,29 +17,23 @@ const HOST_ARTIFACTS   = path.join(HOST_PROJECT_DIR, 'network', 'channel-artifac
 const ORG1_DOMAIN = 'org1.example.com';
 
 /**
- * Lance une commande fabric-tools via docker run.
- * Les volumes montés :
- *   HOST_CRYPTO    → /etc/hyperledger/crypto-config
- *   HOST_ARTIFACTS → /etc/hyperledger/channel-artifacts
- *   HOST_TMP       → /tmp/fabric-work  (pour les fichiers temporaires)
+ * Lance une commande fabric-tools via docker run en tant qu'adminN.
+ * signerOrgNum : org dont on utilise les credentials (default 1).
  */
-function fabricRun(cmd, hostTmpDir) {
-  const mounts = [
-    `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
-    `-v "${HOST_ARTIFACTS}:/etc/hyperledger/channel-artifacts"`,
-  ];
-  if (hostTmpDir) {
-    mounts.push(`-v "${hostTmpDir}:/tmp/fabric-work"`);
-  }
+function fabricRun(cmd, signerOrgNum = 1) {
+  const n      = signerOrgNum;
+  const domain = `org${n}.example.com`;
+  const ports  = n === 1 ? { peer: 7051 } : getPorts(n);
   const fullCmd = [
     'docker run --rm',
     `--network ${DOCKER_NETWORK}`,
-    ...mounts,
+    `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
+    `-v "${HOST_ARTIFACTS}:/etc/hyperledger/channel-artifacts"`,
     `-e CORE_PEER_TLS_ENABLED=true`,
-    `-e CORE_PEER_LOCALMSPID=Org1MSP`,
-    `-e CORE_PEER_ADDRESS=peer0.${ORG1_DOMAIN}:7051`,
-    `-e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto-config/peerOrganizations/${ORG1_DOMAIN}/users/Admin@${ORG1_DOMAIN}/msp`,
-    `-e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto-config/peerOrganizations/${ORG1_DOMAIN}/peers/peer0.${ORG1_DOMAIN}/tls/ca.crt`,
+    `-e CORE_PEER_LOCALMSPID=Org${n}MSP`,
+    `-e CORE_PEER_ADDRESS=peer0.${domain}:${ports.peer}`,
+    `-e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto-config/peerOrganizations/${domain}/users/Admin@${domain}/msp`,
+    `-e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto-config/peerOrganizations/${domain}/peers/peer0.${domain}/tls/ca.crt`,
     'hyperledger/fabric-tools:2.5.4',
     cmd,
   ].join(' ');
@@ -50,20 +45,17 @@ const ORDERER_FLAGS = [
   `--cafile /etc/hyperledger/crypto-config/ordererOrganizations/${ORG1_DOMAIN}/orderers/orderer.${ORG1_DOMAIN}/tls/ca.crt`,
 ].join(' ');
 
-function certB64(certPath) {
-  return Buffer.from(fs.readFileSync(certPath, 'utf8')).toString('base64');
-}
-
 /**
  * Ajoute OrgN au channel backupchannel.
  * Utilise docker run fabric-tools — compatible Alpine/conteneur.
  */
 async function addOrgToChannel(orgNum) {
-  // Dossier de travail dans crypto-config (partagé via bind-mount hôte→conteneur)
   const workDirName = `ch_update_org${orgNum}_${Date.now()}`;
-  const workDirHost = path.join(HOST_CRYPTO, workDirName);   // chemin hôte
-  const workDirCont = `/etc/hyperledger/crypto-config/${workDirName}`; // dans fabric-tools
-  fs.mkdirSync(workDirHost, { recursive: true });
+  // Backend-container path for fs.* operations
+  const workDirNode = path.join(CRYPTO_DIR, workDirName);
+  // Path inside fabric-tools container (HOST_CRYPTO is mounted at /etc/hyperledger/crypto-config)
+  const workDirCont = `/etc/hyperledger/crypto-config/${workDirName}`;
+  fs.mkdirSync(workDirNode, { recursive: true });
 
   try {
     // 1. Récupérer le config block courant
@@ -91,28 +83,13 @@ async function addOrgToChannel(orgNum) {
     }
     appGroups[`Org${orgNum}MSP`] = orgMspJson;
 
-    // 4b. Orderer TLS dans consenters Raft
-    const ports   = getPorts(orgNum);
-    const domain  = `org${orgNum}.example.com`;
-    const ordererTlsCert = path.join(
-      CRYPTO_DIR, 'ordererOrganizations', domain, 'orderers', `orderer.${domain}`, 'tls', 'server.crt',
-    );
-    if (fs.existsSync(ordererTlsCert)) {
-      const tlsCertB64 = certB64(ordererTlsCert);
-      const consenters  = modified.channel_group.groups.Orderer.values.ConsensusType.value.metadata.consenters;
-      if (!consenters.some((c) => c.host === `orderer.${domain}`)) {
-        consenters.push({
-          client_tls_cert: tlsCertB64,
-          host:            `orderer.${domain}`,
-          port:            ports.orderer,
-          server_tls_cert: tlsCertB64,
-        });
-      }
-    }
+    // Note: modification de /Channel/Orderer/ConsensusType (Raft consenters) omise —
+    // elle requiert la signature Org1OrdererMSP.admin, pas Org1MSP.admin.
+    // L'orderer Raft reste Org1 ; Org2/Org3 contribuent uniquement comme peers endorseurs.
 
-    // 5. Écrire config.json et modified_config.json dans le workDir hôte
-    fs.writeFileSync(path.join(workDirHost, 'config.json'),          JSON.stringify(config));
-    fs.writeFileSync(path.join(workDirHost, 'modified_config.json'), JSON.stringify(modified));
+    // 5. Écrire config.json et modified_config.json (chemin container pour fs)
+    fs.writeFileSync(path.join(workDirNode, 'config.json'),          JSON.stringify(config));
+    fs.writeFileSync(path.join(workDirNode, 'modified_config.json'), JSON.stringify(modified));
 
     // 6. Encoder + compute_update
     fabricRun(`configtxlator proto_encode --input "${workDirCont}/config.json" --type common.Config --output "${workDirCont}/original.pb"`);
@@ -129,16 +106,28 @@ async function addOrgToChannel(orgNum) {
         data:   { config_update: JSON.parse(updateDecoded.toString()) },
       },
     };
-    fs.writeFileSync(path.join(workDirHost, 'update_envelope.json'), JSON.stringify(envelope));
+    fs.writeFileSync(path.join(workDirNode, 'update_envelope.json'), JSON.stringify(envelope));
     fabricRun(`configtxlator proto_encode --input "${workDirCont}/update_envelope.json" --type common.Envelope --output "${workDirCont}/update_envelope.pb"`);
 
-    // 8. Signer + soumettre
-    fabricRun(`peer channel signconfigtx -f "${workDirCont}/update_envelope.pb"`);
-    fabricRun(`peer channel update -f "${workDirCont}/update_envelope.pb" -c ${CHANNEL} ${ORDERER_FLAGS}`);
+    // 8. Signer avec TOUS les orgs existants, puis soumettre
+    // (politique MAJORITY : floor(N/2)+1 signatures requises ; on en fournit N)
+    const existingOrgNums = Object.keys(config.channel_group.groups.Application.groups)
+      .map((k) => parseInt(k.replace('Org', '').replace('MSP', ''), 10))
+      .filter((n) => !isNaN(n))
+      .sort((a, b) => a - b);
+
+    // Chaque org existant signe (signconfigtx) sauf le dernier qui signe via channel update
+    for (const n of existingOrgNums.slice(0, -1)) {
+      logger.info(`[channel-updater] signconfigtx Org${n}MSP`);
+      fabricRun(`peer channel signconfigtx -f "${workDirCont}/update_envelope.pb"`, n);
+    }
+    const submitterOrg = existingOrgNums[existingOrgNums.length - 1] || 1;
+    logger.info(`[channel-updater] channel update (signer+submit) Org${submitterOrg}MSP`);
+    fabricRun(`peer channel update -f "${workDirCont}/update_envelope.pb" -c ${CHANNEL} ${ORDERER_FLAGS}`, submitterOrg);
 
     return { success: true };
   } finally {
-    fs.rmSync(workDirHost, { recursive: true, force: true });
+    fs.rmSync(workDirNode, { recursive: true, force: true });
   }
 }
 

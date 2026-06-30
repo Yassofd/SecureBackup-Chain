@@ -1,7 +1,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
-const { Gateway, Wallets, DefaultQueryHandlerStrategies, DefaultEventHandlerStrategies } = require('fabric-network');
+const { Gateway, Wallets, DefaultEventHandlerStrategies } = require('fabric-network');
 const env = require('../../config/env');
 const logger = require('../utils/logger');
 const { getPorts } = require('./port-allocator');
@@ -11,6 +11,40 @@ const PEER_HOST    = process.env.FABRIC_PEER_HOST    || 'localhost';
 const ORDERER_HOST = process.env.FABRIC_ORDERER_HOST || 'localhost';
 
 let gateway = null;
+
+/**
+ * Handler de query qui essaie TOUS les peers disponibles (toutes orgs).
+ * Si Org1 est down, bascule automatiquement sur Org2, Org3, etc.
+ * Format de query.evaluate : { peerName: Error | { isEndorsed, payload, status, message } }
+ */
+function allPeersQueryHandler(network) {
+  return {
+    async evaluate(query) {
+      const endorsers = network.getChannel().getEndorsers();
+      if (!endorsers.length) throw new Error('Aucun peer disponible dans le profil');
+      // Mélange pour distribuer la charge entre orgs
+      const shuffled = [...endorsers].sort(() => Math.random() - 0.5);
+      const errors = [];
+      for (const peer of shuffled) {
+        const resultsMap = await query.evaluate([peer]);
+        const result = resultsMap[peer.name];
+        if (result instanceof Error) {
+          errors.push(`${peer.name}: ${result.message}`);
+          logger.warn(`[fabric] query ${peer.name} échoué — essai pair suivant`);
+          continue;
+        }
+        if (result.isEndorsed) {
+          return result.payload; // Buffer avec la réponse chaincode
+        }
+        // Chaincode a retourné une erreur fonctionnelle (ex: clé introuvable)
+        const err = Object.assign(new Error(result.message), result);
+        throw err;
+      }
+      throw new Error(`Query échouée sur tous les peers : ${errors.join(' | ')}`);
+    },
+    dispose() {},
+  };
+}
 
 function readCert(p) {
   return fs.readFileSync(path.join(CRYPTO_BASE, p), 'utf8');
@@ -163,8 +197,7 @@ async function getGateway() {
     },
     queryHandlerOptions: {
       timeout: 60,
-      // Round-robin sur tous les peers disponibles (toutes orgs)
-      strategy: DefaultQueryHandlerStrategies.ROUND_ROBIN_SCOPE,
+      strategy: allPeersQueryHandler,
     },
   });
   logger.info('Fabric gateway connected');
@@ -196,11 +229,22 @@ async function withRetry(fn) {
   }
 }
 
+function parseFabricResult(result) {
+  const str = result.toString();
+  if (!str || str === 'null') return null;
+  try {
+    return JSON.parse(str);
+  } catch {
+    // Le chaincode a retourné une erreur texte (ex: serveur CCaaS injoignable)
+    throw new Error(`Chaincode non disponible : ${str.slice(0, 200)}`);
+  }
+}
+
 async function submitTransaction(fn, ...args) {
   return withRetry(async () => {
     const contract = await getContract();
     const result = await contract.submitTransaction(fn, ...args);
-    return JSON.parse(result.toString());
+    return parseFabricResult(result);
   });
 }
 
@@ -208,7 +252,7 @@ async function evaluateTransaction(fn, ...args) {
   return withRetry(async () => {
     const contract = await getContract();
     const result = await contract.evaluateTransaction(fn, ...args);
-    return JSON.parse(result.toString());
+    return parseFabricResult(result);
   });
 }
 
