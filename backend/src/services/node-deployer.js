@@ -347,4 +347,36 @@ async function stopNode(orgNum) {
   } catch (_) {}
 }
 
-module.exports = { deployNode, stopNode, STEPS };
+/** Lit les container_name déclarés dans un fichier compose. */
+function getContainerNames(composePath) {
+  const content = fs.readFileSync(composePath, 'utf8');
+  return (content.match(/container_name:\s*(\S+)/g) || [])
+    .map(m => m.replace(/container_name:\s*/, '').trim());
+}
+
+/**
+ * Arrête les conteneurs d'un nœud sans supprimer les volumes (pause réversible).
+ * Utilise `docker stop` directement sur les noms de conteneurs — fonctionne
+ * quel que soit le projet compose qui les a créés (org1 = projet 'securebackup').
+ */
+async function pauseNode(orgNum) {
+  const composePath = path.join(NETWORK_DIR, `docker-compose-node${orgNum}.yaml`);
+  if (!fs.existsSync(composePath)) throw new Error(`Fichier compose introuvable pour org${orgNum}`);
+  const names = getContainerNames(composePath);
+  if (!names.length) throw new Error(`Aucun container_name trouvé pour org${orgNum}`);
+  execSync(`docker stop ${names.join(' ')} 2>&1`, { stdio: 'pipe', timeout: 60_000 });
+}
+
+/**
+ * Démarre les conteneurs d'un nœud précédemment arrêté via `docker stop`.
+ * Utilise `docker start` directement — les conteneurs existent encore après stop.
+ */
+async function startNode(orgNum) {
+  const composePath = path.join(NETWORK_DIR, `docker-compose-node${orgNum}.yaml`);
+  if (!fs.existsSync(composePath)) throw new Error(`Fichier compose introuvable pour org${orgNum}`);
+  const names = getContainerNames(composePath);
+  if (!names.length) throw new Error(`Aucun container_name trouvé pour org${orgNum}`);
+  execSync(`docker start ${names.join(' ')} 2>&1`, { stdio: 'pipe', timeout: 60_000 });
+}
+
+module.exports = { deployNode, stopNode, pauseNode, startNode, STEPS };

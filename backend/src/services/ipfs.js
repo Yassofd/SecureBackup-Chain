@@ -4,11 +4,44 @@ const fs = require('fs');
 const { Readable } = require('stream');
 const env = require('../../config/env');
 
+const { getPorts } = require('./port-allocator');
+
 const API         = env.IPFS.API_URL;
 const CLUSTER_URL = env.IPFS.CLUSTER_URL;
 
+// Endpoints de fallback pour org2, org3, org4, org5 (conteneurs ipfsN / clusterN).
+// Le port IPFS interne est toujours 5001.
+// Le port cluster REST = 9094 + (orgNum-1)*1000 (configuré via CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS).
+const FALLBACK_CLUSTER_URLS = [2, 3, 4, 5].map(n => `http://cluster${n - 1}:${getPorts(n).clusterApi}`);
+const FALLBACK_IPFS_URLS    = [2, 3, 4, 5].map(n => `http://ipfs${n - 1}:5001`);
+
+/** Retourne le premier URL cluster joignable (timeout 2 s par tentative). */
+async function getWorkingClusterUrl() {
+  const candidates = [CLUSTER_URL, ...FALLBACK_CLUSTER_URLS].filter(Boolean);
+  for (const url of candidates) {
+    try {
+      const res = await fetch(`${url}/peers`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return url;
+    } catch (_) {}
+  }
+  throw new Error('Aucun nœud IPFS Cluster disponible — vérifiez que au moins un nœud est démarré');
+}
+
+/** Retourne le premier URL IPFS API joignable (timeout 2 s par tentative). */
+async function getWorkingIpfsUrl() {
+  const candidates = [API, ...FALLBACK_IPFS_URLS].filter(Boolean);
+  for (const url of candidates) {
+    try {
+      const res = await fetch(`${url}/api/v0/version`, { method: 'POST', signal: AbortSignal.timeout(2000) });
+      if (res.ok) return url;
+    } catch (_) {}
+  }
+  throw new Error('Aucun daemon IPFS disponible — vérifiez que au moins un nœud est démarré');
+}
+
 async function version() {
-  const res = await fetch(`${API}/api/v0/version`, { method: 'POST' });
+  const url = await getWorkingIpfsUrl();
+  const res = await fetch(`${url}/api/v0/version`, { method: 'POST' });
   if (!res.ok) throw new Error(`IPFS unreachable: ${res.status}`);
   return res.json();
 }
@@ -32,9 +65,12 @@ async function _fetchMultipart(asyncIterable, filename) {
   }
 
   const webStream = Readable.toWeb(Readable.from(multipart()));
-  const url = CLUSTER_URL ? `${CLUSTER_URL}/add` : `${API}/api/v0/add`;
+  // Sonder les endpoints disponibles AVANT de streamer (le body ne peut pas être relu)
+  const activeCluster = await getWorkingClusterUrl().catch(() => null);
+  const activeIpfs    = activeCluster ? null : await getWorkingIpfsUrl();
+  const uploadUrl     = activeCluster ? `${activeCluster}/add` : `${activeIpfs}/api/v0/add`;
 
-  const res = await fetch(url, {
+  const res = await fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     body: webStream,
@@ -68,20 +104,23 @@ async function addFromAsyncIterable(asyncIterable, filename = 'file') {
 }
 
 async function cat(cid) {
-  const res = await fetch(`${API}/api/v0/cat?arg=${encodeURIComponent(cid)}`, { method: 'POST' });
+  const url = await getWorkingIpfsUrl();
+  const res = await fetch(`${url}/api/v0/cat?arg=${encodeURIComponent(cid)}`, { method: 'POST' });
   if (!res.ok) throw new Error(`IPFS cat failed: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
 
 async function pin(cid) {
-  if (!CLUSTER_URL) return;
-  const res = await fetch(`${CLUSTER_URL}/pins/${encodeURIComponent(cid)}`, { method: 'POST' });
+  const url = await getWorkingClusterUrl().catch(() => null);
+  if (!url) return;
+  const res = await fetch(`${url}/pins/${encodeURIComponent(cid)}`, { method: 'POST' });
   if (!res.ok) throw new Error(`IPFS Cluster pin failed: ${res.status}`);
 }
 
 async function clusterPeers() {
-  if (!CLUSTER_URL) return null;
-  const res = await fetch(`${CLUSTER_URL}/peers`);
+  const url = await getWorkingClusterUrl().catch(() => null);
+  if (!url) return null;
+  const res = await fetch(`${url}/peers`);
   if (!res.ok) throw new Error(`IPFS Cluster peers failed: ${res.status}`);
   return res.json();
 }

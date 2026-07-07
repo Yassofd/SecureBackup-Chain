@@ -83,8 +83,10 @@ export const networkApi = {
 };
 
 export const deploymentApi = {
-  listNodes:  ()   => api.get('/deployment/nodes'),
-  deleteNode: (id) => api.delete(`/deployment/nodes/${id}`),
+  listNodes:  ()         => api.get('/deployment/nodes'),
+  deleteNode: (id)       => api.delete(`/deployment/nodes/${id}`),
+  stopNode:   (orgNum)   => api.post(`/deployment/org/${orgNum}/stop`),
+  startNode:  (orgNum)   => api.post(`/deployment/org/${orgNum}/start`),
 };
 
 export default api;

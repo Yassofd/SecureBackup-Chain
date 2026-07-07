@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Server, Play, CheckCircle, XCircle,
-  Terminal, Plus, X, AlertTriangle, Trash2, Loader2, Package,
+  Terminal, Plus, X, AlertTriangle, Trash2, Loader2, Package, Square,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { deploymentApi } from '../services/api';
@@ -181,8 +181,11 @@ function DeployModal({ onClose, onSuccess }) {
   );
 }
 
-function NodeCard({ node, accent, onDelete }) {
-  const [deleting, setDeleting] = useState(false);
+function NodeCard({ node, accent, onDelete, onStatusChange }) {
+  const [deleting,  setDeleting]  = useState(false);
+  const [stopping,  setStopping]  = useState(false);
+  const [starting,  setStarting]  = useState(false);
+  const [actionErr, setActionErr] = useState(null);
 
   const handleDelete = async () => {
     if (!confirm(`Supprimer Org${node.orgNum} et arrêter ses conteneurs Docker ?`)) return;
@@ -193,10 +196,41 @@ function NodeCard({ node, accent, onDelete }) {
     } catch (_) { setDeleting(false); }
   };
 
+  const handleStop = async () => {
+    setActionErr(null);
+    setStopping(true);
+    try {
+      await deploymentApi.stopNode(node.orgNum);
+      onStatusChange(node.orgNum, 'stopped');
+    } catch (e) {
+      setActionErr(e?.response?.data?.error || e.message || 'Erreur');
+    }
+    setStopping(false);
+  };
+
+  const handleStart = async () => {
+    setActionErr(null);
+    setStarting(true);
+    try {
+      await deploymentApi.startNode(node.orgNum);
+      onStatusChange(node.orgNum, 'running');
+    } catch (e) {
+      setActionErr(e?.response?.data?.error || e.message || 'Erreur');
+    }
+    setStarting(false);
+  };
+
   const isLocal = node.orgNum === 1;
+  const canStop  = node.status === 'running';
+  const canStart = node.status === 'stopped' || node.status === 'error';
 
   return (
     <div className="card p-4 space-y-3 hover:border-ink-400 transition-colors">
+      {actionErr && (
+        <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1 break-all">
+          {actionErr}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -236,17 +270,39 @@ function NodeCard({ node, accent, onDelete }) {
         )}>
           {STATUS_LABEL[node.status] || node.status}
         </span>
-        {!isLocal && (
-          <button onClick={handleDelete} disabled={deleting}
-            className="p-1.5 text-ink-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
-            title="Arrêter et supprimer ce nœud">
-            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-          </button>
-        )}
+
+        <div className="flex items-center gap-1">
+          {canStart && (
+            <button onClick={handleStart} disabled={starting}
+              className="p-1.5 text-ink-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors disabled:opacity-40"
+              title="Démarrer ce nœud">
+              {starting ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            </button>
+          )}
+          {canStop && (
+            <button onClick={handleStop} disabled={stopping}
+              className="p-1.5 text-ink-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-40"
+              title="Arrêter ce nœud (conteneurs, données conservées)">
+              {stopping ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
+            </button>
+          )}
+          {!isLocal && (
+            <button onClick={handleDelete} disabled={deleting}
+              className="p-1.5 text-ink-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40"
+              title="Supprimer ce nœud (arrêt + données effacées)">
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+const LOCAL_NODE_BASE = {
+  orgNum: 1, orgName: 'Org1', ip: '127.0.0.1',
+  peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001,
+};
 
 export default function Deployment() {
   const [nodes,     setNodes]     = useState([]);
@@ -256,18 +312,22 @@ export default function Deployment() {
   const loadNodes = useCallback(async () => {
     try {
       const { data } = await deploymentApi.listNodes();
-      setNodes(data);
+      setNodes((prev) => {
+        if (data.some((n) => n.orgNum === 1)) return data;
+        // Org1 n'est pas en DB : conserver son statut actuel ou démarrer à 'running'
+        const prevOrg1 = prev.find((n) => n.orgNum === 1);
+        return [{ ...LOCAL_NODE_BASE, status: prevOrg1?.status || 'running' }, ...data];
+      });
     } catch (_) {}
     setLoading(false);
   }, []);
 
   useEffect(() => { loadNodes(); }, [loadNodes]);
 
-  const localNode = {
-    orgNum: 1, orgName: 'Org1', ip: '127.0.0.1', status: 'running',
-    peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001,
-  };
-  const allNodes = nodes.some((n) => n.orgNum === 1) ? nodes : [localNode, ...nodes];
+  // Mise à jour immédiate du statut d'un nœud dans le state local
+  const updateNodeStatus = useCallback((orgNum, status) => {
+    setNodes((prev) => prev.map((n) => n.orgNum === orgNum ? { ...n, status } : n));
+  }, []);
 
   return (
     <div className="p-7 max-w-6xl space-y-6">
@@ -275,7 +335,7 @@ export default function Deployment() {
         <div>
           <h1 className="page-title">Nœuds du réseau</h1>
           <p className="page-sub">
-            {allNodes.length} nœud{allNodes.length > 1 ? 's' : ''} actif{allNodes.length > 1 ? 's' : ''} — tous sur cet hôte Docker
+            {nodes.length} nœud{nodes.length > 1 ? 's' : ''} — tous sur cet hôte Docker
           </p>
         </div>
         <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-1.5">
@@ -289,12 +349,13 @@ export default function Deployment() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {allNodes.map((node, i) => (
+          {nodes.map((node, i) => (
             <NodeCard
               key={node.id || node.orgNum}
               node={node}
               accent={NODE_ACCENTS[i % NODE_ACCENTS.length]}
               onDelete={loadNodes}
+              onStatusChange={updateNodeStatus}
             />
           ))}
         </div>

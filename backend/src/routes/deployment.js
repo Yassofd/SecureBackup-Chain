@@ -7,7 +7,7 @@ const path = require('path');
 const authMiddleware = require('../middleware/auth');
 const logger = require('../utils/logger');
 const requireRole    = require('../middleware/role');
-const { deployNode, stopNode, STEPS } = require('../services/node-deployer');
+const { deployNode, stopNode, pauseNode, startNode, STEPS } = require('../services/node-deployer');
 const { reconnect } = require('../services/fabric');
 const db = require('../services/db');
 
@@ -178,6 +178,30 @@ router.get('/init-network/stream', requireRole('admin'), (req, res) => {
     if (!res.writableEnded) res.end();
   });
   req.on('close', () => proc.kill());
+});
+
+// ── POST /api/deployment/org/:orgNum/stop ─────────────────────────────────────
+// Arrête les conteneurs du nœud sans supprimer les volumes (pause réversible).
+router.post('/org/:orgNum/stop', requireRole('admin'), async (req, res, next) => {
+  try {
+    const orgNum = parseInt(req.params.orgNum, 10);
+    if (!orgNum || orgNum < 1) return res.status(400).json({ error: 'orgNum invalide' });
+    await pauseNode(orgNum);
+    await db.fabricNode.updateMany({ where: { orgNum }, data: { status: 'stopped' } }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/deployment/org/:orgNum/start ────────────────────────────────────
+// Démarre (ou redémarre) les conteneurs d'un nœud arrêté.
+router.post('/org/:orgNum/start', requireRole('admin'), async (req, res, next) => {
+  try {
+    const orgNum = parseInt(req.params.orgNum, 10);
+    if (!orgNum || orgNum < 1) return res.status(400).json({ error: 'orgNum invalide' });
+    await startNode(orgNum);
+    await db.fabricNode.updateMany({ where: { orgNum }, data: { status: 'running' } }).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 // ── GET /api/deployment/steps ─────────────────────────────────────────────────
