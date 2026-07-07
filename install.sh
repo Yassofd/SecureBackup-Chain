@@ -218,21 +218,25 @@ else
   log "Certificats déjà présents"
 fi
 
-# 3b. Genesis block
-if [ ! -f "$ARTIFACTS_DIR/genesis.block" ]; then
-  info "Génération du genesis block..."
-  $FABRIC_TOOLS configtxgen \
-    -profile Org1Genesis \
-    -channelID system-channel \
-    -outputBlock /network/channel-artifacts/genesis.block 2>&1 | grep -v "^$" | grep -v "^\[" | sed 's/^/     /' || true
-  log "Genesis block généré"
+# 3b. Bundle TLS CA cluster Orderer (nécessaire avant le démarrage de l'orderer)
+# Docker crée un répertoire vide si le fichier n'existe pas au moment du bind mount —
+# ce bundle doit donc exister sur l'hôte AVANT docker compose up.
+BUNDLE="$CRYPTO_DIR/orderer-cluster-tls-ca-bundle.crt"
+if [ ! -f "$BUNDLE" ]; then
+  info "Génération du bundle TLS CA cluster orderer..."
+  # Copier via un conteneur pour éviter les problèmes de permissions root
+  docker run --rm \
+    -v "$CRYPTO_DIR:/crypto" \
+    alpine sh -c \
+      "cp /crypto/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/ca.crt /crypto/orderer-cluster-tls-ca-bundle.crt && chmod 644 /crypto/orderer-cluster-tls-ca-bundle.crt"
+  log "Bundle TLS CA généré"
 else
-  log "Genesis block déjà présent"
+  log "Bundle TLS CA déjà présent"
 fi
 
-# 3c. Channel transaction
+# 3c. Channel transaction (anchor peers — toujours utile)
 if [ ! -f "$ARTIFACTS_DIR/channel.tx" ]; then
-  info "Génération du channel.tx..."
+  info "Génération du channel.tx et anchors..."
   $FABRIC_TOOLS configtxgen \
     -profile Org1Channel \
     -channelID backupchannel \
@@ -245,6 +249,19 @@ if [ ! -f "$ARTIFACTS_DIR/channel.tx" ]; then
   log "Channel artifacts générés"
 else
   log "Channel artifacts déjà présents"
+fi
+
+# 3d. Genesis block du channel applicatif (channel participation API — pas de system channel)
+# Remplace l'ancien «genesis.block system-channel» + «peer channel create».
+if [ ! -f "$ARTIFACTS_DIR/backupchannel.block" ]; then
+  info "Génération du genesis block backupchannel (channel participation API)..."
+  $FABRIC_TOOLS configtxgen \
+    -profile Org1ChannelGenesis \
+    -channelID backupchannel \
+    -outputBlock /network/channel-artifacts/backupchannel.block 2>&1 | grep -v "^$" | grep -v "^\[" | sed 's/^/     /' || true
+  log "backupchannel.block généré"
+else
+  log "backupchannel.block déjà présent"
 fi
 
 # ── [4] Démarrage des services ───────────────────────────────────────────────
@@ -269,6 +286,43 @@ info "Démarrage des conteneurs..."
 docker compose up -d --remove-orphans 2>&1 | sed 's/^/     /' || true
 
 log "Conteneurs démarrés"
+
+# ── [4b] Bootstrap orderer via channel participation API ────────────────────
+info "Bootstrap de l'orderer sur backupchannel (channel participation API)..."
+# Attendre que l'orderer soit prêt (max 30s)
+_ord_ready=false
+for _i in $(seq 1 30); do
+  if docker ps --filter "name=^orderer.org1.example.com$" --filter "status=running" -q 2>/dev/null | grep -q .; then
+    _ord_ready=true; break
+  fi
+  sleep 1
+done
+sleep 5  # délai supplémentaire pour que le port admin soit prêt
+
+if $_ord_ready; then
+  _osnadmin_out=$(docker run --rm \
+    --network securebackup-net \
+    -v "$CRYPTO_DIR:/etc/hyperledger/crypto-config" \
+    -v "$ARTIFACTS_DIR:/etc/hyperledger/channel-artifacts" \
+    hyperledger/fabric-tools:2.5.4 \
+    osnadmin channel join \
+      --channelID backupchannel \
+      --config-block /etc/hyperledger/channel-artifacts/backupchannel.block \
+      -o orderer.org1.example.com:9443 \
+      --ca-file     /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/ca.crt \
+      --client-cert /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt \
+      --client-key  /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.key \
+    2>&1 || true)
+  if echo "$_osnadmin_out" | grep -q '"status": "active"'; then
+    log "Orderer bootstrappé sur backupchannel (Raft leader élu)"
+  elif echo "$_osnadmin_out" | grep -q "already exists\|409"; then
+    log "Orderer déjà membre de backupchannel"
+  else
+    warn "Bootstrap orderer: $_osnadmin_out"
+  fi
+else
+  warn "Orderer non disponible — bootstrap reporté à init-network"
+fi
 
 # ── [5] Attente de la disponibilité ─────────────────────────────────────────
 step "5/7" "Attente de la disponibilité des services"

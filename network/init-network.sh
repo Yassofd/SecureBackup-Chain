@@ -30,54 +30,71 @@ ok()   { log "OK:$1 $2"; }
 # ── [0] Vérifications préalables ──────────────────────────────────────────────
 step "prereqs" "Vérification des prérequis..."
 command -v docker >/dev/null 2>&1 || { log "ERROR:prereqs Docker non installé"; exit 1; }
-[ -x "$BIN/cryptogen" ]    || { log "ERROR:prereqs cryptogen introuvable dans $BIN"; exit 1; }
-[ -x "$BIN/configtxgen" ]  || { log "ERROR:prereqs configtxgen introuvable dans $BIN"; exit 1; }
-ok "prereqs" "Docker et binaires Fabric OK"
+# Les binaires locaux (cryptogen, configtxgen) sont optionnels depuis la migration
+# vers fabric-tools Docker — init-network.sh les utilise via docker run.
+if [ -x "$BIN/cryptogen" ] && [ -x "$BIN/configtxgen" ]; then
+  ok "prereqs" "Docker et binaires Fabric locaux OK"
+else
+  ok "prereqs" "Docker OK (binaires Fabric via image hyperledger/fabric-tools:2.5.4)"
+fi
 
 # ── [1] Génération crypto Org1 (si absente) ───────────────────────────────────
 step "crypto" "Génération des certificats Org1..."
 if [ ! -d "$CRYPTO/peerOrganizations/org1.example.com" ]; then
   mkdir -p "$CRYPTO"
-  "$BIN/cryptogen" generate \
-    --config="$SCRIPT_DIR/crypto-config-node1.yaml" \
-    --output="$CRYPTO" 2>&1
+  if [ -x "$BIN/cryptogen" ]; then
+    "$BIN/cryptogen" generate \
+      --config="$SCRIPT_DIR/crypto-config-node1.yaml" \
+      --output="$CRYPTO" 2>&1
+  else
+    docker run --rm \
+      -v "$SCRIPT_DIR:/network" \
+      hyperledger/fabric-tools:2.5.4 \
+      cryptogen generate \
+        --config=/network/crypto-config-node1.yaml \
+        --output=/network/crypto-config 2>&1
+  fi
   ok "crypto" "Certificats Org1 générés"
 else
   ok "crypto" "Certificats Org1 déjà présents"
 fi
 
-# ── [2] Génération des artifacts (genesis + channel.tx) ───────────────────────
-step "artifacts" "Génération genesis block et channel.tx..."
+# ── [2] Génération des artifacts ──────────────────────────────────────────────
+step "artifacts" "Génération des artifacts Fabric..."
 mkdir -p "$ARTIFACTS"
-export FABRIC_CFG_PATH="$SCRIPT_DIR"
 
-if [ ! -f "$ARTIFACTS/genesis.block" ]; then
-  "$BIN/configtxgen" \
-    -profile Org1Genesis \
-    -channelID system-channel \
-    -outputBlock "$ARTIFACTS/genesis.block" 2>&1
-  ok "artifacts" "genesis.block généré"
-else
-  ok "artifacts" "genesis.block déjà présent"
-fi
+# Toujours utiliser l'image Docker fabric-tools pour configtxgen :
+# les binaires locaux (fabric-samples/bin) peuvent être absents après clean.sh.
+# Le mount -v "$SCRIPT_DIR:/network" expose configtx.yaml + crypto-config.
+_configtxgen() {
+  docker run --rm \
+    -v "$SCRIPT_DIR:/network" \
+    -e FABRIC_CFG_PATH=/network \
+    hyperledger/fabric-tools:2.5.4 \
+    configtxgen "$@" 2>&1
+}
+
+# Chemins DANS le conteneur (via le mount /network)
+_DART="/network/channel-artifacts"
 
 if [ ! -f "$ARTIFACTS/channel.tx" ]; then
-  "$BIN/configtxgen" \
-    -profile Org1Channel \
-    -channelID "$CHANNEL" \
-    -outputCreateChannelTx "$ARTIFACTS/channel.tx" 2>&1
-
-  "$BIN/configtxgen" \
-    -profile Org1Channel \
-    -channelID "$CHANNEL" \
-    -outputAnchorPeersUpdate "$ARTIFACTS/Org1MSPanchors.tx" \
-    -asOrg Org1MSP 2>&1
+  _configtxgen -profile Org1Channel -channelID "$CHANNEL" \
+    -outputCreateChannelTx "${_DART}/channel.tx" | grep -v "^\[" || true
+  _configtxgen -profile Org1Channel -channelID "$CHANNEL" \
+    -outputAnchorPeersUpdate "${_DART}/Org1MSPanchors.tx" -asOrg Org1MSP | grep -v "^\[" || true
   ok "artifacts" "channel.tx et anchors.tx générés"
 else
   ok "artifacts" "channel.tx déjà présent"
 fi
 
-export FABRIC_CFG_PATH="$BIN/../config"
+# Genesis block applicatif pour channel participation API
+if [ ! -f "$ARTIFACTS/${CHANNEL}.block" ]; then
+  _configtxgen -profile Org1ChannelGenesis -channelID "$CHANNEL" \
+    -outputBlock "${_DART}/${CHANNEL}.block" | grep -v "^\[" || true
+  ok "artifacts" "${CHANNEL}.block généré"
+else
+  ok "artifacts" "${CHANNEL}.block déjà présent"
+fi
 
 # ── [3] Fichier .env pour le compose ──────────────────────────────────────────
 step "env" "Création du .env Node1..."
@@ -126,17 +143,31 @@ peer1_cli() {
     hyperledger/fabric-tools:2.5.4"
 }
 
-# ── [6] Créer le channel ──────────────────────────────────────────────────────
-step "create_channel" "Création du channel $CHANNEL..."
-if [ ! -f "$ARTIFACTS/${CHANNEL}.block" ]; then
-  $(peer1_cli) peer channel create \
-    $ORDERER_ADDR -c "$CHANNEL" \
-    -f /etc/hyperledger/channel-artifacts/channel.tx \
-    $ORDERER_FLAGS \
-    --outputBlock /etc/hyperledger/channel-artifacts/${CHANNEL}.block 2>&1
-  ok "create_channel" "Channel $CHANNEL créé"
+# ── [6] Bootstrap orderer sur le channel via channel participation API ────────
+# Remplace «peer channel create» (ancienne méthode system-channel) par osnadmin.
+# L'orderer utilise BOOTSTRAPMETHOD=none — il n'y a pas de system channel.
+step "create_channel" "Bootstrap orderer sur channel $CHANNEL..."
+_osnadmin_join() {
+  docker run --rm \
+    --network "${DOCKER_NETWORK:-securebackup-net}" \
+    -v "$HOST_CRYPTO:/etc/hyperledger/crypto-config" \
+    -v "$HOST_ARTIFACTS:/etc/hyperledger/channel-artifacts" \
+    hyperledger/fabric-tools:2.5.4 \
+    osnadmin channel join \
+      --channelID "$CHANNEL" \
+      --config-block "/etc/hyperledger/channel-artifacts/${CHANNEL}.block" \
+      -o orderer.org1.example.com:9443 \
+      --ca-file     /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/ca.crt \
+      --client-cert /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt \
+      --client-key  /etc/hyperledger/crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.key \
+    2>&1
+}
+_osn_out=$(_osnadmin_join || true)
+if echo "$_osn_out" | grep -qE '"status": "active"|already exists|409'; then
+  ok "create_channel" "Orderer membre de $CHANNEL"
 else
-  ok "create_channel" "Channel $CHANNEL déjà créé"
+  log "INFO:create_channel osnadmin: $_osn_out"
+  ok "create_channel" "Bootstrap orderer tenté"
 fi
 
 # ── [7] Jointure du peer Org1 ────────────────────────────────────────────────

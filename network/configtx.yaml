@@ -259,3 +259,27 @@ Profiles:
         - *Org1
       Capabilities:
         <<: *ApplicationCapabilities
+
+  # Profil pour channel participation API (BOOTSTRAPMETHOD=none, sans system-channel)
+  Org1ChannelGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Addresses:
+        - orderer.org1.example.com:7050
+      EtcdRaft:
+        Consenters:
+          - Host: orderer.org1.example.com
+            Port: 7050
+            ClientTLSCert: crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt
+            ServerTLSCert: crypto-config/ordererOrganizations/org1.example.com/orderers/orderer.org1.example.com/tls/server.crt
+      Organizations:
+        - *Org1Orderer
+      Capabilities:
+        <<: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *Org1
+      Capabilities:
+        <<: *ApplicationCapabilities

@@ -56,8 +56,22 @@ if [ "$FORCE" = false ]; then
   echo ""
 fi
 
-# ── 1. Arrêt des conteneurs + suppression des volumes ────────────────────────
-info "Arrêt des conteneurs et suppression des volumes Docker..."
+# ── 1. Arrêt des nœuds supplémentaires (org2, org3, …) ─────────────────────
+info "Arrêt des nœuds additionnels (org2, org3, …)..."
+for _n in 2 3 4 5; do
+  _cf="$SCRIPT_DIR/network/docker-compose-node${_n}.yaml"
+  _ef="$SCRIPT_DIR/network/.env.node${_n}"
+  if [ -f "$_cf" ]; then
+    docker compose -f "$_cf" $( [ -f "$_ef" ] && echo "--env-file $_ef" ) \
+      down -v --remove-orphans 2>&1 \
+      | grep -E "^( Container| Volume)" | sed 's/^/     /' || true
+    rm -f "$_cf" "$_ef"
+    log "Node${_n} arrêté et compose supprimé"
+  fi
+done
+
+# ── 2. Arrêt des conteneurs + suppression des volumes ────────────────────────
+info "Arrêt des conteneurs principaux et suppression des volumes Docker..."
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
   docker compose -f "$SCRIPT_DIR/docker-compose.yml" down -v --remove-orphans 2>&1 \
     | grep -E "^( Container| Volume| Network)" | sed 's/^/     /' || true
@@ -66,10 +80,10 @@ else
   warn "docker-compose.yml introuvable — ignoré"
 fi
 
-# ── 2. Conteneurs résiduels liés au projet ───────────────────────────────────
-info "Suppression des conteneurs résiduels (backup-cc, fabric-tools...)..."
+# ── 3. Conteneurs résiduels liés au projet ───────────────────────────────────
+info "Suppression des conteneurs résiduels (backup-cc, fabric-tools, org*)..."
 RESIDUAL=$(docker ps -a --format "{{.Names}}" 2>/dev/null \
-  | grep -E "securebackup|backup-cc|peer0|orderer|couchdb|ipfs|cluster" || true)
+  | grep -E "securebackup|backup-cc|peer0\.|orderer\.|couchdb[0-9]|ipfs[0-9]|cluster[0-9]|ca\." || true)
 if [ -n "$RESIDUAL" ]; then
   echo "$RESIDUAL" | xargs docker rm -f 2>/dev/null || true
   log "Conteneurs résiduels supprimés"
@@ -77,7 +91,7 @@ else
   log "Aucun conteneur résiduel"
 fi
 
-# ── 3. Artefacts générés ─────────────────────────────────────────────────────
+# ── 4. Artefacts générés ─────────────────────────────────────────────────────
 info "Suppression des artefacts générés..."
 
 TARGETS=(
@@ -97,7 +111,7 @@ for TARGET in "${TARGETS[@]}"; do
   fi
 done
 
-# ── 4. Vérification finale ───────────────────────────────────────────────────
+# ── 5. Vérification finale ───────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}  Nettoyage terminé.${NC}"
 echo ""
