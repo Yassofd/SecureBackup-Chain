@@ -386,28 +386,26 @@ if $BACKEND_READY; then
     warn "Vous pourrez créer votre compte via l'interface web"
   fi
 
-  # Lancer init-network via le backend SSE si le channel n'est pas encore créé.
-  # On vérifie la présence du fichier block (preuve que le channel existe) plutôt que
-  # le health Fabric — le gateway se connecte au peer sans vérifier l'existence du channel,
-  # donc fabric:ok ne garantit pas que backupchannel est initialisé.
-  BLOCK_FILE="$SCRIPT_DIR/network/channel-artifacts/backupchannel.block"
-  if [ ! -f "$BLOCK_FILE" ]; then
-    info "Lancement de l'initialisation Fabric (cela prend 2-3 minutes)..."
-    LOGIN_RESP=$(curl -s -X POST "$API_BASE/auth/login" \
-      -H "Content-Type: application/json" \
-      -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" 2>/dev/null)
-    TOKEN=$(echo "$LOGIN_RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+  # Lancer init-network via le backend SSE.
+  # init-network.sh est idempotent : il saute les étapes déjà faites (crypto, artifacts,
+  # bootstrap orderer) et exécute toujours peer join + anchor + chaincode deploy.
+  info "Lancement de l'initialisation Fabric (peer join + chaincode)..."
+  LOGIN_RESP=$(curl -s -X POST "$API_BASE/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" 2>/dev/null)
+  TOKEN=$(echo "$LOGIN_RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
 
-    if [ -n "$TOKEN" ]; then
-      curl -s -N "$API_BASE/deployment/init-network/stream" \
-        -H "Authorization: Bearer $TOKEN" \
-        --max-time 300 2>/dev/null | \
-        grep -E "STEP:|OK:|DONE:|ERROR:" | sed 's/^data://; s/^/     /' &
-      CURL_PID=$!
-      wait $CURL_PID 2>/dev/null || true
-    fi
+  if [ -n "$TOKEN" ]; then
+    curl -s -N "$API_BASE/deployment/init-network/stream" \
+      -H "Authorization: Bearer $TOKEN" \
+      --max-time 300 2>/dev/null | \
+      while IFS= read -r line; do
+        _msg=$(echo "$line" | sed 's/^data://; s/^{"type":"[^"]*","[^:]*":"\([^"]*\)".*/\1/' 2>/dev/null || echo "$line")
+        [ -n "$_msg" ] && echo "     $_msg"
+      done
   else
-    info "Channel backupchannel déjà initialisé — étape ignorée"
+    warn "Impossible d'obtenir un token — init-network ignoré"
+    warn "Lancez manuellement via l'interface web après connexion"
   fi
 fi
 
