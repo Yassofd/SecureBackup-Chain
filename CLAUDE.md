@@ -11,13 +11,20 @@ Système de sauvegarde décentralisée combinant **Hyperledger Fabric** (blockch
 > ⚠️ **À mettre à jour à chaque fin de phase.**
 
 - **Phase en cours** : Phase 18 — Compression zstd (niveau bancaire)
-- **Dernière phase complétée** : Phase 17 — Finitions et durcissement production
+- **Dernière phase complétée** : Résilience Raft multi-org (hors roadmap numérotée)
+  - Cluster Raft 3 orderers (org1 + org2 + org3), voters=(1 2 3) confirmés
+  - `extra_hosts: []` dans docker-compose.yml — suppression du bug DNS qui bloquait Raft en mono-hôte
+  - Orderer org1 : channel participation API (`BOOTSTRAPMETHOD=none`, `CHANNELPARTICIPATION_ENABLED=true`), admin TLS sur port 9443
+  - `node-deployer.js` : ordre corrigé `start → orderjoin → raft` (joinOrdererToChannel AVANT addOrdererToRaft)
+  - `node-deployer.js` : `activeOrgs = [1..orgNum]` au lieu de `getDeployedOrgNums()` pour ccapprove/ccpolicy
+  - Résultat : arrêt d'orderer.org1 → élection org2 comme leader (term 3) → transaction commitée sans interruption
+  - Policy chaincode : `OR('Org1MSP.member','Org2MSP.member','Org3MSP.member')` — séquence 3
+- **Phase 17 complétée** : Finitions et durcissement production
   - helmet + rate limiting (500 req/15min global, 20 req/15min auth) + gzip compression
   - Logger Winston avec rotation quotidienne (logs/ — 30j app, 90j erreurs)
   - Endpoints `/api/admin/export-config` et `/api/admin/import-config` (archive .tar.gz.enc AES-256-GCM)
   - Snapshots automatiques quotidiens à 02:00 (pg_dump + `peer channel fetch`) → snapshots/
   - Index PostgreSQL sur colonnes filtrées (user_id, created_at, status, expires_at)
-  - Connection profile Fabric limité à Org1, discovery désactivé, endorsement policy `OR('Org1MSP.member')`
 - **Roadmap étendue** : 9 nouvelles phases (18–26) pour atteindre le niveau bancaire national
   - Performance : zstd (18), parallélisation (19), agent daemon (20)
   - Protocole : MinIO S3 TLS 1.3 remplace SSH (21), déduplication CDC (22)

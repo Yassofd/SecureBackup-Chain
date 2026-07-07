@@ -133,4 +133,52 @@ function generateOrgConfigtxJson(orgNum) {
   }
 }
 
-module.exports = { generateOrgCrypto, generateOrgConfigtxJson, CRYPTO_DIR, NETWORK_DIR };
+/**
+ * Génère le JSON de définition de l'org ORDERER pour configtxlator (channel update Raft).
+ * Inclut les OrdererEndpoints pour que les peers sachent où livrer les blocs.
+ */
+function generateOrdererOrgMspJson(orgNum) {
+  const { getPorts } = require('./port-allocator');
+  const domain  = `org${orgNum}.example.com`;
+  const mspName = `Org${orgNum}OrdererMSP`;
+  const port    = getPorts(orgNum).orderer;
+
+  const configtxYaml = `Organizations:
+  - &Org${orgNum}Orderer
+    Name: ${mspName}
+    ID: ${mspName}
+    MSPDir: /etc/hyperledger/crypto-config/ordererOrganizations/${domain}/msp
+    OrdererEndpoints:
+      - "orderer.${domain}:${port}"
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('${mspName}.member')"
+      Writers:
+        Type: Signature
+        Rule: "OR('${mspName}.member')"
+      Admins:
+        Type: Signature
+        Rule: "OR('${mspName}.admin')"
+`;
+
+  const tmpName = `configtx_ordorg${orgNum}_${Date.now()}`;
+  const tmpDir  = path.join(CRYPTO_DIR, tmpName);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, 'configtx.yaml'), configtxYaml);
+
+  try {
+    const out = execSync([
+      'docker run --rm',
+      `--network ${process.env.DOCKER_NETWORK || 'securebackup-net'}`,
+      `-v "${HOST_CRYPTO}:/etc/hyperledger/crypto-config"`,
+      'hyperledger/fabric-tools:2.5.4',
+      `configtxgen -configPath "/etc/hyperledger/crypto-config/${tmpName}" -printOrg ${mspName}`,
+    ].join(' '), { stdio: 'pipe' });
+    return JSON.parse(out.toString());
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+module.exports = { generateOrgCrypto, generateOrgConfigtxJson, generateOrdererOrgMspJson, CRYPTO_DIR, NETWORK_DIR };

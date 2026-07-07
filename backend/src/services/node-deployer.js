@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 const { getPorts, getOrgNames } = require('./port-allocator');
 const { generateCompose }       = require('./compose-generator');
 const { generateOrgCrypto }     = require('./crypto-generator');
-const { addOrgToChannel }       = require('./channel-updater');
+const { addOrgToChannel, addOrdererToRaft, joinOrdererToChannel } = require('./channel-updater');
 const logger                    = require('../utils/logger');
 
 const NETWORK_DIR   = path.resolve(__dirname, '../../../network');
@@ -28,16 +28,18 @@ const ORDERER_FLAGS = [
 ].join(' ');
 
 const STEPS = [
-  { id: 'crypto',    label: 'Génération des certificats',    pct: 10 },
-  { id: 'channel',   label: 'Mise à jour du channel',        pct: 20 },
-  { id: 'compose',   label: 'Génération docker-compose',     pct: 32 },
-  { id: 'pull',      label: 'Téléchargement images Docker',  pct: 52 },
-  { id: 'start',     label: 'Démarrage des conteneurs',      pct: 68 },
-  { id: 'join',      label: 'Jointure du channel Fabric',    pct: 78 },
-  { id: 'ccinstall', label: 'Installation du chaincode',     pct: 85 },
-  { id: 'ccapprove', label: 'Approbation lifecycle',         pct: 91 },
-  { id: 'ccpolicy',  label: 'Mise à jour signature policy',  pct: 97 },
-  { id: 'done',      label: 'Déploiement terminé',           pct: 100 },
+  { id: 'crypto',     label: 'Génération des certificats',         pct: 10 },
+  { id: 'channel',    label: 'Mise à jour du channel',             pct: 18 },
+  { id: 'compose',    label: 'Génération docker-compose',          pct: 25 },
+  { id: 'pull',       label: 'Téléchargement images Docker',       pct: 40 },
+  { id: 'start',      label: 'Démarrage des conteneurs',           pct: 55 },
+  { id: 'orderjoin',  label: 'Jonction orderer au channel',        pct: 65 },
+  { id: 'raft',       label: 'Intégration cluster Raft',           pct: 73 },
+  { id: 'join',       label: 'Jointure du channel Fabric',         pct: 80 },
+  { id: 'ccinstall',  label: 'Installation du chaincode',          pct: 86 },
+  { id: 'ccapprove',  label: 'Approbation lifecycle',              pct: 91 },
+  { id: 'ccpolicy',   label: 'Mise à jour signature policy',       pct: 97 },
+  { id: 'done',       label: 'Déploiement terminé',                pct: 100 },
 ];
 
 /** Lance une commande fabric-tools via docker run en tant qu'admin de l'orgN. */
@@ -161,6 +163,42 @@ async function deployNode(options, onEvent) {
       throw new Error(`Aucun conteneur actif.\n${logsOut.slice(0, 500)}`);
     }
 
+    // ── 5b. Jonction de l'orderer au channel via channel participation API ────
+    // IMPORTANT: doit être AVANT addOrdererToRaft pour que l'orderer.org1 (seul leader)
+    // puisse répliquer le config block voters+1 vers orderer.orgN en temps réel.
+    emit('orderjoin', { log: `Jonction de orderer.${lower} au channel ${CHANNEL}…` });
+    try {
+      await joinOrdererToChannel(orgNum);
+      emit('orderjoin', { log: `orderer.${lower} a rejoint ${CHANNEL} (channel participation)` });
+    } catch (err) {
+      const msg = err.message || '';
+      if (msg.includes('already exists') || msg.includes('already joined')) {
+        emit('orderjoin', { log: `orderer.${lower} déjà dans ${CHANNEL}`, warn: true });
+      } else {
+        emit('orderjoin', { log: `Jonction orderer échouée — ${msg.slice(0, 200)}`, warn: true });
+      }
+    }
+
+    // ── 5c. Intégration au cluster Raft ───────────────────────────────────────
+    // Appelé APRÈS que l'orderer.orgN est live et a rejoint le channel.
+    // orderer.org1 (solo leader, voters=(1..N-1)) commit le config block voters+N,
+    // le réplique vers orderer.orgN (follower chain) → orgN devient voter Raft.
+    emit('raft', { log: `Ajout de orderer.${lower} au cluster Raft…` });
+    try {
+      await addOrdererToRaft(orgNum);
+      emit('raft', { log: `orderer.${lower} intégré au cluster Raft (voters +1)` });
+    } catch (err) {
+      const msg = err.message || '';
+      if (err.code === 'ALREADY_EXISTS' || msg.includes('already exists')) {
+        emit('raft', { log: `orderer.${lower} déjà dans le cluster Raft`, warn: true });
+      } else {
+        emit('raft', { log: `Avertissement Raft : ${msg.slice(0, 150)}`, warn: true });
+      }
+    }
+    // Attendre que le config block se propage et qu'une élection Raft ait lieu.
+    emit('raft', { log: 'Attente stabilisation Raft (15s)…' });
+    await new Promise((r) => setTimeout(r, 15_000));
+
     // ── 6. Jointure du channel ─────────────────────────────────────────────────
     const blockPath = path.join(ARTIFACTS_DIR, 'backupchannel.block');
     if (fs.existsSync(blockPath)) {
@@ -196,29 +234,31 @@ async function deployNode(options, onEvent) {
     }
 
     // ── 8. Approbation lifecycle (séquence courante) ───────────────────────────
-    // Le nouveau peer approuve la définition commitée courante → peut endosser immédiatement.
+    // Le nouveau peer approuve la définition commitée courante.
+    // activeOrgs = orgs 1..orgNum (celles qui sont réellement déployées à ce stade).
     emit('ccapprove', { log: `Approbation lifecycle sur peer0.${lower}…` });
     let currentSeq = 1;
+    const activeOrgs = Array.from({ length: orgNum }, (_, i) => i + 1);
     try {
       const qcOut = fabricRun(1, `peer lifecycle chaincode querycommitted --channelID ${CHANNEL} --name ${CC_NAME}`).toString();
       currentSeq = parseInt(qcOut.match(/Sequence: (\d+)/)?.[1] || '1');
 
       if (!installedPkgId) throw new Error('Package ID inconnu — impossible d\'approuver');
 
-      // La policy commitée = toutes les orgs déployées SAUF la nouvelle (non encore dans la policy)
-      const existingOrgs   = getDeployedOrgNums().filter(n => n !== orgNum);
-      const currentPolicy  = buildPolicy(existingOrgs.length ? existingOrgs : [1]);
+      // Policy courante = orgs actives SAUF le nouvel org (déjà dans la policy commitée)
+      const prevOrgs      = activeOrgs.filter(n => n !== orgNum);
+      const currentPolicy = buildPolicy(prevOrgs.length ? prevOrgs : [1]);
 
       fabricRun(orgNum,
         `peer lifecycle chaincode approveformyorg ${ORDERER_FLAGS}` +
         ` --channelID ${CHANNEL} --name ${CC_NAME}` +
         ` --version ${CC_VERSION} --package-id "${installedPkgId}"` +
-        ` --sequence ${currentSeq} --signature-policy "${currentPolicy}" --waitForEvent=false`,
+        ` --sequence ${currentSeq} --signature-policy "${currentPolicy}"`,
       );
       emit('ccapprove', { log: `peer0.${lower} a approuvé séquence ${currentSeq}` });
     } catch (e) {
       const msg = (e.stderr || Buffer.alloc(0)).toString() + e.message;
-      if (msg.includes('unchanged content')) {
+      if (msg.includes('unchanged content') || msg.includes('already defined')) {
         emit('ccapprove', { log: `Séquence ${currentSeq} déjà approuvée par ${org}` });
       } else {
         emit('ccapprove', { log: `Approbation échouée — ${e.message?.slice(0, 200)}`, warn: true });
@@ -227,40 +267,43 @@ async function deployNode(options, onEvent) {
 
     // ── 9. Mise à jour signature policy (nouvelle séquence) ────────────────────
     // Bumpe la séquence et ajoute le nouvel org à la policy de signature.
+    // N'approuve et ne commite que les orgs 1..orgNum (réellement actives).
     emit('ccpolicy', { log: `Mise à jour de la signature policy pour inclure ${org}…` });
     try {
       if (!installedPkgId) throw new Error('Package ID manquant');
 
-      const allOrgs   = getDeployedOrgNums();
       const newSeq    = currentSeq + 1;
-      const newPolicy = buildPolicy(allOrgs);
+      const newPolicy = buildPolicy(activeOrgs);
 
-      // Approbation par toutes les orgs (tolérant aux pannes — MAJORITY suffit)
+      // Approbation par les orgs actives (MAJORITY suffit)
       let approvedCount = 0;
-      for (const n of allOrgs) {
+      for (const n of activeOrgs) {
         try {
           fabricRun(n,
             `peer lifecycle chaincode approveformyorg ${ORDERER_FLAGS}` +
             ` --channelID ${CHANNEL} --name ${CC_NAME}` +
             ` --version ${CC_VERSION} --package-id "${installedPkgId}"` +
-            ` --sequence ${newSeq} --signature-policy "${newPolicy}" --waitForEvent=false`,
+            ` --sequence ${newSeq} --signature-policy "${newPolicy}"`,
           );
           approvedCount++;
           logger.info(`[node-deployer] Org${n} a approuvé séquence ${newSeq}`);
         } catch (e) {
           const msg = (e.stderr || Buffer.alloc(0)).toString() + e.message;
-          if (msg.includes('unchanged content')) { approvedCount++; continue; }
+          if (msg.includes('unchanged content') || msg.includes('already defined')) {
+            approvedCount++;
+            continue;
+          }
           logger.warn(`[node-deployer] approveformyorg Org${n} échoué : ${e.message?.slice(0, 100)}`);
         }
       }
 
-      const majority = Math.floor(allOrgs.length / 2) + 1;
+      const majority = Math.floor(activeOrgs.length / 2) + 1;
       if (approvedCount < majority) {
-        throw new Error(`Seulement ${approvedCount}/${allOrgs.length} approbations — MAJORITY (${majority}) requises`);
+        throw new Error(`Seulement ${approvedCount}/${activeOrgs.length} approbations — MAJORITY (${majority}) requises`);
       }
 
-      // Commit avec les peer addresses de toutes les orgs
-      const peerFlags = allOrgs.map(n => {
+      // Commit avec les peer addresses des orgs actives uniquement
+      const peerFlags = activeOrgs.map(n => {
         const { domain: d } = getOrgNames(n);
         const p = getPorts(n);
         return `--peerAddresses peer0.${d}:${p.peer} --tlsRootCertFiles /etc/hyperledger/crypto-config/peerOrganizations/${d}/peers/peer0.${d}/tls/ca.crt`;

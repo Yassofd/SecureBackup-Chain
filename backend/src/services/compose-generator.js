@@ -43,8 +43,8 @@ services:
       - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
       - ORDERER_GENERAL_LISTENPORT=${p.orderer}
-      - ORDERER_GENERAL_GENESISMETHOD=file
-      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=none
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
       - ORDERER_GENERAL_LOCALMSPID=${org}OrdererMSP
       - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
       - ORDERER_GENERAL_TLS_ENABLED=true
@@ -53,14 +53,21 @@ services:
       - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
       - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
       - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
-      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/cluster-ca-bundle.crt]
+      - ORDERER_ADMIN_TLS_ENABLED=true
+      - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_ADMIN_TLS_CLIENTAUTHREQUIRED=true
+      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:9443
     volumes:
-      - ${hostNet}/channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block:ro
       - ${hostNet}/crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/msp:/var/hyperledger/orderer/msp:ro
       - ${hostNet}/crypto-config/ordererOrganizations/${domain}/orderers/orderer.${domain}/tls:/var/hyperledger/orderer/tls:ro
+      - ${hostNet}/crypto-config/orderer-cluster-tls-ca-bundle.crt:/var/hyperledger/orderer/cluster-ca-bundle.crt:ro
       - ${ordererVol}:/var/hyperledger/production/orderer
     ports:
       - "${p.orderer}:${p.orderer}"
+      - "${p.ordererAdmin}:9443"
     networks:
       - securebackup-net
 

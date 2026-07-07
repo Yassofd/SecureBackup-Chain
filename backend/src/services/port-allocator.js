@@ -13,7 +13,8 @@ function getPorts(orgNum) {
   const n = Number(orgNum);
   if (n === 1) {
     return {
-      orderer: 7050, peer: 7051, chaincode: 7052, ca: 7054,
+      orderer: 7050, ordererAdmin: 7043,
+      peer: 7051, chaincode: 7052, ca: 7054,
       couchHost: 5984, ipfs: 5001, swarm: 4001, gateway: 8080,
       clusterApi: 9094, clusterSwarm: 9096,
     };
@@ -21,6 +22,7 @@ function getPorts(orgNum) {
   const base = 6000 + n * 1000;
   return {
     orderer:      base + 50,
+    ordererAdmin: base + 43,
     peer:         base + 51,
     chaincode:    base + 52,
     ca:           base + 54,
