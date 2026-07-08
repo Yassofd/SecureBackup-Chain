@@ -8,7 +8,7 @@ const authMiddleware = require('../middleware/auth');
 const logger = require('../utils/logger');
 const requireRole    = require('../middleware/role');
 const { deployNode, stopNode, pauseNode, startNode, STEPS } = require('../services/node-deployer');
-const { reconnect } = require('../services/fabric');
+const { reconnect, disconnect } = require('../services/fabric');
 const db = require('../services/db');
 
 const router = Router();
@@ -188,6 +188,8 @@ router.post('/org/:orgNum/stop', requireRole('admin'), async (req, res, next) =>
     if (!orgNum || orgNum < 1) return res.status(400).json({ error: 'orgNum invalide' });
     await pauseNode(orgNum);
     await db.fabricNode.updateMany({ where: { orgNum }, data: { status: 'stopped' } }).catch(() => {});
+    // Forcer la reconstruction du gateway Fabric sans le peer arrêté
+    disconnect();
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -200,6 +202,8 @@ router.post('/org/:orgNum/start', requireRole('admin'), async (req, res, next) =
     if (!orgNum || orgNum < 1) return res.status(400).json({ error: 'orgNum invalide' });
     await startNode(orgNum);
     await db.fabricNode.updateMany({ where: { orgNum }, data: { status: 'running' } }).catch(() => {});
+    // Laisser les conteneurs démarrer puis reconstruire le gateway avec tous les peers
+    setTimeout(() => reconnect().catch((e) => logger.warn(`[deployment] reconnect after start: ${e.message}`)), 15_000);
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

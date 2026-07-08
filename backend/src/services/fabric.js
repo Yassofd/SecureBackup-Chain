@@ -191,9 +191,10 @@ async function getGateway() {
     identity: env.FABRIC.ADMIN_USER,
     discovery: { enabled: false, asLocalhost: false },
     eventHandlerOptions: {
-      commitTimeout: 300,
-      // Un seul peer parmi tous les orgs doit confirmer → résistant aux pannes
-      strategy: DefaultEventHandlerStrategies.PREFER_MSPID_SCOPE_ANYFORTX,
+      commitTimeout: 30,
+      // N'importe quel peer du réseau peut confirmer le commit
+      // (PREFER_MSPID bloquait sur org1 même si org2/org3 confirmaient déjà)
+      strategy: DefaultEventHandlerStrategies.NETWORK_SCOPE_ANYFORTX,
     },
     queryHandlerOptions: {
       timeout: 60,
