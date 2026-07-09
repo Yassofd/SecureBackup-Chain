@@ -299,11 +299,6 @@ function NodeCard({ node, accent, onDelete, onStatusChange }) {
   );
 }
 
-const LOCAL_NODE_BASE = {
-  orgNum: 1, orgName: 'Org1', ip: '127.0.0.1',
-  peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001,
-};
-
 export default function Deployment() {
   const [nodes,     setNodes]     = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -312,12 +307,8 @@ export default function Deployment() {
   const loadNodes = useCallback(async () => {
     try {
       const { data } = await deploymentApi.listNodes();
-      setNodes((prev) => {
-        if (data.some((n) => n.orgNum === 1)) return data;
-        // Org1 n'est pas en DB : conserver son statut actuel ou démarrer à 'running'
-        const prevOrg1 = prev.find((n) => n.orgNum === 1);
-        return [{ ...LOCAL_NODE_BASE, status: prevOrg1?.status || 'running' }, ...data];
-      });
+      // Le backend retourne toujours org1 en tête avec son vrai statut Docker
+      setNodes(data);
     } catch (_) {}
     setLoading(false);
   }, []);

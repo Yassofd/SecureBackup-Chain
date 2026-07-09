@@ -355,6 +355,22 @@ function getContainerNames(composePath) {
 }
 
 /**
+ * Retourne le statut réel d'un conteneur Docker : 'running' | 'stopped' | 'error'.
+ * Utilise `docker inspect` pour ne pas dépendre d'un processus en cours.
+ */
+function getContainerStatus(containerName) {
+  try {
+    const out = execSync(
+      `docker inspect --format '{{.State.Status}}' ${containerName} 2>/dev/null`,
+      { stdio: 'pipe', timeout: 5000 },
+    ).toString().trim();
+    return out === 'running' ? 'running' : 'stopped';
+  } catch {
+    return 'stopped';
+  }
+}
+
+/**
  * Arrête les conteneurs d'un nœud sans supprimer les volumes (pause réversible).
  * Utilise `docker stop` directement sur les noms de conteneurs — fonctionne
  * quel que soit le projet compose qui les a créés (org1 = projet 'securebackup').
@@ -364,7 +380,8 @@ async function pauseNode(orgNum) {
   if (!fs.existsSync(composePath)) throw new Error(`Fichier compose introuvable pour org${orgNum}`);
   const names = getContainerNames(composePath);
   if (!names.length) throw new Error(`Aucun container_name trouvé pour org${orgNum}`);
-  execSync(`docker stop ${names.join(' ')} 2>&1`, { stdio: 'pipe', timeout: 60_000 });
+  // --time 3 : réduit le délai SIGTERM→SIGKILL de 10s à 3s par conteneur
+  execSync(`docker stop --time 3 ${names.join(' ')} 2>&1`, { stdio: 'pipe', timeout: 60_000 });
 }
 
 /**
@@ -379,4 +396,4 @@ async function startNode(orgNum) {
   execSync(`docker start ${names.join(' ')} 2>&1`, { stdio: 'pipe', timeout: 60_000 });
 }
 
-module.exports = { deployNode, stopNode, pauseNode, startNode, STEPS };
+module.exports = { deployNode, stopNode, pauseNode, startNode, getContainerStatus, STEPS };

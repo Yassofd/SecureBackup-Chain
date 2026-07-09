@@ -7,7 +7,7 @@ const path = require('path');
 const authMiddleware = require('../middleware/auth');
 const logger = require('../utils/logger');
 const requireRole    = require('../middleware/role');
-const { deployNode, stopNode, pauseNode, startNode, STEPS } = require('../services/node-deployer');
+const { deployNode, stopNode, pauseNode, startNode, getContainerStatus, STEPS } = require('../services/node-deployer');
 const { reconnect, disconnect } = require('../services/fabric');
 const db = require('../services/db');
 
@@ -26,9 +26,24 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ── GET /api/deployment/nodes ─────────────────────────────────────────────────
+// Retourne toujours org1 en tête avec son vrai statut Docker, puis les autres nœuds DB.
 router.get('/nodes', async (req, res, next) => {
   try {
     const nodes = await db.fabricNode.findMany({ orderBy: { orgNum: 'asc' } });
+
+    // Org1 n'est pas en DB — on la retourne avec le vrai statut des conteneurs
+    if (!nodes.some((n) => n.orgNum === 1)) {
+      const org1Status = getContainerStatus('peer0.org1.example.com');
+      const org1 = {
+        id: 'local-org1', orgNum: 1, orgName: 'Org1', ip: '127.0.0.1',
+        host: 'localhost', sshUser: 'local',
+        peerPort: 7051, ordererPort: 7050, caPort: 7054, ipfsPort: 5001, couchPort: 5984,
+        status: org1Status,
+        createdAt: new Date(0).toISOString(),
+      };
+      nodes.unshift(org1);
+    }
+
     res.json(nodes);
   } catch (err) { next(err); }
 });
