@@ -18,7 +18,7 @@ NON_INTERACTIVE=false
 [[ "${1:-}" == "--non-interactive" ]] && NON_INTERACTIVE=true
 
 # ── Bannière ─────────────────────────────────────────────────────────────────
-clear
+clear 2>/dev/null || true
 echo -e "${CYAN}"
 cat <<'BANNER'
   ____                          ____             _

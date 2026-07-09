@@ -18,7 +18,8 @@ const NAV_GROUPS = [
     items: [
       { to: '/',              label: 'Dashboard',      icon: LayoutDashboard },
       { to: '/backups',       label: 'Sauvegardes',    icon: HardDrive },
-      { to: '/remote-backup', label: 'Distante',       icon: CloudUpload },
+      { to: '/remote-backup', label: 'Distante SSH',    icon: CloudUpload },
+      { to: '/sftp-backup',   label: 'Distante SFTP',  icon: HardDriveDownload },
       { to: '/schedules',     label: 'Planifications', icon: CalendarClock },
       { to: '/verify',        label: 'Vérifier',       icon: CheckCircle },
     ],
@@ -188,7 +189,8 @@ function TopBar({ onOpenCommand }) {
   const crumbs = {
     '/':              'Dashboard',
     '/backups':       'Sauvegardes',
-    '/remote-backup': 'Sauvegarde distante',
+    '/remote-backup': 'Sauvegarde distante SSH',
+    '/sftp-backup':   'Sauvegarde distante SFTP',
     '/schedules':     'Planifications',
     '/verify':        'Vérification',
     '/network':       'Réseau',
@@ -233,7 +235,8 @@ function TopBar({ onOpenCommand }) {
 const ALL_PAGES = [
   { label: 'Dashboard',       to: '/',              icon: LayoutDashboard },
   { label: 'Sauvegardes',     to: '/backups',       icon: HardDrive },
-  { label: 'Distante',        to: '/remote-backup', icon: CloudUpload },
+  { label: 'Distante SSH',    to: '/remote-backup', icon: CloudUpload },
+  { label: 'Distante SFTP',  to: '/sftp-backup',   icon: HardDriveDownload },
   { label: 'Planifications',  to: '/schedules',     icon: CalendarClock },
   { label: 'Vérifier',        to: '/verify',        icon: CheckCircle },
   { label: 'Réseau',          to: '/network',       icon: Network },
