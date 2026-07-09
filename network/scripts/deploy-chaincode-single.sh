@@ -80,6 +80,9 @@ fi
 
 [ -z "$PACKAGE_ID" ] && echo "ERROR: Impossible de trouver le Package ID" && exit 1
 
+# Écrire le package ID dans network/.chaincode-id (accessible depuis l'hôte car /network est monté)
+echo "$PACKAGE_ID" > "$NETWORK_DIR/.chaincode-id"
+
 # Mettre à jour CHAINCODE_ID dans le .env racine
 if [ -f "$ROOT_DIR/.env" ]; then
   python3 -c "

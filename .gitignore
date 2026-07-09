@@ -47,3 +47,4 @@ backend/config/initialized.json
 network/fabric-samples/
 network/.env.node*/
 network/.env.chaincode*
+network/.chaincode-id

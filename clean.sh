@@ -99,6 +99,7 @@ TARGETS=(
   "$SCRIPT_DIR/network/channel-artifacts"
   "$SCRIPT_DIR/network/fabric-samples"
   "$SCRIPT_DIR/network/.env.node1"
+  "$SCRIPT_DIR/network/.chaincode-id"
   "$SCRIPT_DIR/backend/wallet"
   "$SCRIPT_DIR/backend/config/initialized.json"
   "$SCRIPT_DIR/backend/logs"

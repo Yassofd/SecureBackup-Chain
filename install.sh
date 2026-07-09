@@ -401,31 +401,25 @@ if $BACKEND_READY; then
       --max-time 300 2>/dev/null | \
       while IFS= read -r line; do
         _msg=$(echo "$line" | sed 's/^data://; s/^{"type":"[^"]*","[^:]*":"\([^"]*\)".*/\1/' 2>/dev/null || echo "$line")
-        [ -n "$_msg" ] && echo "     $_msg"
-      done
+        [ -n "$_msg" ] && echo "     $_msg" || true
+      done || true
   else
     warn "Impossible d'obtenir un token — init-network ignoré"
     warn "Lancez manuellement via l'interface web après connexion"
   fi
 fi
 
-# Récupérer le CHAINCODE_ID réel depuis le peer et mettre à jour le .env hôte.
-# deploy-chaincode-single.sh met à jour /.env dans le conteneur Docker, pas le .env hôte.
-info "Récupération du CHAINCODE_ID réel depuis le peer..."
-_PKGID=$(docker run --rm --network securebackup-net \
-  -v "$SCRIPT_DIR/network/crypto-config:/etc/hyperledger/crypto-config" \
-  -e CORE_PEER_LOCALMSPID=Org1MSP \
-  -e CORE_PEER_TLS_ENABLED=true \
-  -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
-  -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp \
-  -e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-  hyperledger/fabric-tools:2.5.4 \
-  peer lifecycle chaincode queryinstalled 2>/dev/null | grep "Package ID:" | awk '{print $3}' | tr -d ',' | head -1)
-if [ -n "$_PKGID" ]; then
-  sed -i "s|^CHAINCODE_ID=.*|CHAINCODE_ID=$_PKGID|" "$SCRIPT_DIR/.env"
-  log "CHAINCODE_ID mis à jour : $_PKGID"
+# Lire le CHAINCODE_ID écrit par deploy-chaincode-single.sh dans network/.chaincode-id
+# (le script tourne dans Docker avec /network monté → ROOT_DIR=/ n'existe pas, mais NETWORK_DIR=/network si)
+_CHAINCODE_ID_FILE="$SCRIPT_DIR/network/.chaincode-id"
+if [ -f "$_CHAINCODE_ID_FILE" ]; then
+  _PKGID=$(cat "$_CHAINCODE_ID_FILE" | tr -d '[:space:]')
+  if [ -n "$_PKGID" ]; then
+    sed -i "s|^CHAINCODE_ID=.*|CHAINCODE_ID=$_PKGID|" "$SCRIPT_DIR/.env"
+    log "CHAINCODE_ID mis à jour : $_PKGID"
+  fi
 else
-  warn "Impossible de récupérer le CHAINCODE_ID — le container chaincode utilisera PENDING"
+  warn "Fichier .chaincode-id introuvable — le container chaincode utilisera PENDING"
 fi
 
 # Recréer le conteneur chaincode pour qu'il charge le CHAINCODE_ID réel.
