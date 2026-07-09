@@ -6,7 +6,8 @@ const path = require('path');
 const db = require('./db');
 const fabric = require('./fabric');
 const ipfs = require('./ipfs');
-const sshService = require('./ssh');
+const sshService  = require('./ssh');
+const sftpService = require('./sftp');
 const { sha256, encryptAES } = require('./crypto');
 const { decrypt: decryptCred } = require('./credentials');
 const env = require('../../config/env');
@@ -30,7 +31,7 @@ function computeNextRun(cronExpression) {
 async function executeSchedule(scheduleId) {
   const schedule = await db.scheduledBackup.findUnique({
     where: { id: scheduleId },
-    include: { sshServer: true },
+    include: { sshServer: true, sftpServer: true },
   });
   if (!schedule || schedule.status !== 'active') return;
 
@@ -43,25 +44,33 @@ async function executeSchedule(scheduleId) {
   });
 
   let tmpPath = null;
-  let ssh = null;
+  let conn = null;
+  const useSftp = !!schedule.sftpServerId;
   try {
-    const server = schedule.sshServer;
-    if (!server) throw new Error('Serveur SSH introuvable');
+    const server = useSftp ? schedule.sftpServer : schedule.sshServer;
+    if (!server) throw new Error(useSftp ? 'Serveur SFTP introuvable' : 'Serveur SSH introuvable');
 
     const credentials = JSON.parse(decryptCred(server.encryptedCredentials));
-    ssh = await sshService.connect({
+    const connParams = {
       host: server.host,
       port: server.port,
       username: server.username,
       auth_type: server.authType,
       credentials,
-    });
+    };
 
-    const remoteFileHash = await sshService.remoteHash(ssh, schedule.remotePath);
-    const { localPath, isDirectory } = await sshService.fetchRemotePath(ssh, schedule.remotePath);
+    let localPath, isDirectory;
+    if (useSftp) {
+      conn = await sftpService.connect(connParams);
+      ({ localPath, isDirectory } = await sftpService.fetchRemotePath(conn, schedule.remotePath));
+      await sftpService.closeConnection(conn);
+    } else {
+      conn = await sshService.connect(connParams);
+      ({ localPath, isDirectory } = await sshService.fetchRemotePath(conn, schedule.remotePath));
+      await sshService.closeConnection(conn);
+    }
+    conn = null;
     tmpPath = localPath;
-    await sshService.closeConnection(ssh);
-    ssh = null;
 
     const buffer = fs.readFileSync(tmpPath);
     const localHash = sha256(buffer);
@@ -93,8 +102,9 @@ async function executeSchedule(scheduleId) {
     });
 
     if (schedule.ownerId) {
+      const proto = useSftp ? 'SFTP' : 'SSH';
       notify(schedule.ownerId, 'schedule_success', 'Planification exécutée',
-        `La planification "${schedule.name}" s'est exécutée avec succès (backup ${entry.backupId}).`);
+        `La planification "${schedule.name}" (${proto}) s'est exécutée avec succès (backup ${entry.backupId}).`);
     }
 
     // Rétention : supprimer les runs les plus anciens au-delà de retentionCount
@@ -125,7 +135,9 @@ async function executeSchedule(scheduleId) {
     notifyAdmins('schedule_error', 'Planification échouée',
       `La planification "${schedule.name}" a échoué : ${err.message}`);
   } finally {
-    if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
+    if (conn) {
+      try { useSftp ? await sftpService.closeConnection(conn) : await sshService.closeConnection(conn); } catch (_) {}
+    }
     if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
   }
 }

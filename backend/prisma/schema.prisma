@@ -82,6 +82,8 @@ model SftpServer {
   owner                User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt            DateTime @default(now()) @map("created_at")
 
+  scheduledBackups ScheduledBackup[]
+
   @@map("sftp_servers")
 }
 
@@ -89,7 +91,9 @@ model ScheduledBackup {
   id             String    @id @default(uuid()) @db.Uuid
   name           String    @db.VarChar(255)
   sshServerId    String?   @map("ssh_server_id") @db.Uuid
-  sshServer      SshServer? @relation(fields: [sshServerId], references: [id], onDelete: SetNull)
+  sshServer      SshServer?  @relation(fields: [sshServerId], references: [id], onDelete: SetNull)
+  sftpServerId   String?   @map("sftp_server_id") @db.Uuid
+  sftpServer     SftpServer? @relation(fields: [sftpServerId], references: [id], onDelete: SetNull)
   remotePath     String    @map("remote_path")
   cronExpression String    @map("cron_expression") @db.VarChar(100)
   retentionDays  Int       @default(30) @map("retention_days")

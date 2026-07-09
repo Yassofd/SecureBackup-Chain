@@ -13,9 +13,14 @@ function sanitize(s) {
   return {
     id: s.id,
     name: s.name,
+    serverType: s.sftpServerId ? 'sftp' : 'ssh',
     sshServerId: s.sshServerId,
     sshServer: s.sshServer
       ? { id: s.sshServer.id, name: s.sshServer.name, host: s.sshServer.host, username: s.sshServer.username }
+      : null,
+    sftpServerId: s.sftpServerId,
+    sftpServer: s.sftpServer
+      ? { id: s.sftpServer.id, name: s.sftpServer.name, host: s.sftpServer.host, username: s.sftpServer.username }
       : null,
     remotePath: s.remotePath,
     cronExpression: s.cronExpression,
@@ -35,7 +40,7 @@ router.get('/', async (req, res, next) => {
     const where = req.user.role === 'responsable' ? { ownerId: req.user.sub } : {};
     const schedules = await db.scheduledBackup.findMany({
       where,
-      include: { sshServer: true },
+      include: { sshServer: true, sftpServer: true },
       orderBy: { createdAt: 'desc' },
     });
     res.json(schedules.map(sanitize));
@@ -45,20 +50,30 @@ router.get('/', async (req, res, next) => {
 // POST /api/schedules
 router.post('/', requireRole('admin', 'responsable'), async (req, res, next) => {
   try {
-    const { name, sshServerId, remotePath, cronExpression, retentionDays, retentionCount } = req.body;
-    if (!name || !sshServerId || !remotePath || !cronExpression) {
-      return res.status(400).json({ error: 'name, sshServerId, remotePath, cronExpression sont obligatoires' });
+    const { name, sshServerId, sftpServerId, remotePath, cronExpression, retentionDays, retentionCount } = req.body;
+    if (!name || (!sshServerId && !sftpServerId) || !remotePath || !cronExpression) {
+      return res.status(400).json({ error: 'name, remotePath, cronExpression et sshServerId (ou sftpServerId) sont obligatoires' });
+    }
+    if (sshServerId && sftpServerId) {
+      return res.status(400).json({ error: 'Choisir soit sshServerId soit sftpServerId, pas les deux' });
     }
     if (!cron.validate(cronExpression)) {
       return res.status(400).json({ error: 'Expression cron invalide' });
     }
-    const server = await db.sshServer.findUnique({ where: { id: sshServerId } });
-    if (!server) return res.status(404).json({ error: 'Serveur SSH non trouvé' });
+    if (sshServerId) {
+      const server = await db.sshServer.findUnique({ where: { id: sshServerId } });
+      if (!server) return res.status(404).json({ error: 'Serveur SSH non trouvé' });
+    }
+    if (sftpServerId) {
+      const server = await db.sftpServer.findUnique({ where: { id: sftpServerId } });
+      if (!server) return res.status(404).json({ error: 'Serveur SFTP non trouvé' });
+    }
 
     const schedule = await db.scheduledBackup.create({
       data: {
         name,
-        sshServerId,
+        ...(sshServerId  && { sshServerId }),
+        ...(sftpServerId && { sftpServerId }),
         remotePath,
         cronExpression,
         retentionDays: retentionDays ?? 30,
@@ -66,7 +81,7 @@ router.post('/', requireRole('admin', 'responsable'), async (req, res, next) => 
         status: 'active',
         ownerId: req.user.sub,
       },
-      include: { sshServer: true },
+      include: { sshServer: true, sftpServer: true },
     });
     registerTask(schedule);
     res.status(201).json(sanitize(schedule));
@@ -81,7 +96,7 @@ router.put('/:id', requireRole('admin', 'responsable'), async (req, res, next) =
     if (req.user.role !== 'admin' && existing.ownerId !== req.user.sub) {
       return res.status(403).json({ error: 'Accès refusé' });
     }
-    const { name, sshServerId, remotePath, cronExpression, retentionDays, retentionCount } = req.body;
+    const { name, sshServerId, sftpServerId, remotePath, cronExpression, retentionDays, retentionCount } = req.body;
     if (cronExpression && !cron.validate(cronExpression)) {
       return res.status(400).json({ error: 'Expression cron invalide' });
     }
@@ -89,13 +104,14 @@ router.put('/:id', requireRole('admin', 'responsable'), async (req, res, next) =
       where: { id: req.params.id },
       data: {
         ...(name && { name }),
-        ...(sshServerId && { sshServerId }),
+        ...(sshServerId  !== undefined && { sshServerId,  sftpServerId: null }),
+        ...(sftpServerId !== undefined && { sftpServerId, sshServerId:  null }),
         ...(remotePath && { remotePath }),
         ...(cronExpression && { cronExpression }),
         ...(retentionDays !== undefined && { retentionDays }),
         ...(retentionCount !== undefined && { retentionCount }),
       },
-      include: { sshServer: true },
+      include: { sshServer: true, sftpServer: true },
     });
     registerTask(updated);
     res.json(sanitize(updated));
@@ -128,7 +144,7 @@ router.post('/:id/pause', requireRole('admin', 'responsable'), async (req, res, 
     const updated = await db.scheduledBackup.update({
       where: { id: req.params.id },
       data: { status: 'paused' },
-      include: { sshServer: true },
+      include: { sshServer: true, sftpServer: true },
     });
     res.json(sanitize(updated));
   } catch (err) { next(err); }
@@ -148,7 +164,7 @@ router.post('/:id/resume', requireRole('admin', 'responsable'), async (req, res,
     const updated = await db.scheduledBackup.update({
       where: { id: req.params.id },
       data: { status: 'active' },
-      include: { sshServer: true },
+      include: { sshServer: true, sftpServer: true },
     });
     registerTask(updated);
     res.json(sanitize(updated));

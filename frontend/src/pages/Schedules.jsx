@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { CalendarClock, Plus, Trash2, Pause, Play, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Pause, Play, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, Clock, Server, HardDriveDownload } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,9 +13,9 @@ const CRON_PRESETS = [
   { label: 'Personnalisé',           value: '__custom__' },
 ];
 
-function NewScheduleForm({ servers, onSave, onCancel }) {
+function NewScheduleForm({ sshServers, sftpServers, onSave, onCancel }) {
   const [form, setForm] = useState({
-    name: '', sshServerId: '', remotePath: '',
+    name: '', serverType: 'ssh', sshServerId: '', sftpServerId: '', remotePath: '',
     cronPreset: CRON_PRESETS[1].value, cronExpression: CRON_PRESETS[1].value,
     retentionDays: 30, retentionCount: '',
   });
@@ -32,7 +32,16 @@ function NewScheduleForm({ servers, onSave, onCancel }) {
   async function submit(e) {
     e.preventDefault(); setSaving(true); setError('');
     try {
-      await onSave({ name: form.name, sshServerId: form.sshServerId, remotePath: form.remotePath, cronExpression: form.cronExpression, retentionDays: Number(form.retentionDays), retentionCount: form.retentionCount ? Number(form.retentionCount) : null });
+      const payload = {
+        name: form.name,
+        remotePath: form.remotePath,
+        cronExpression: form.cronExpression,
+        retentionDays: Number(form.retentionDays),
+        retentionCount: form.retentionCount ? Number(form.retentionCount) : null,
+      };
+      if (form.serverType === 'sftp') payload.sftpServerId = form.sftpServerId;
+      else payload.sshServerId = form.sshServerId;
+      await onSave(payload);
     } catch (err) { setError(err.response?.data?.error || err.message); }
     finally { setSaving(false); }
   }
@@ -47,12 +56,41 @@ function NewScheduleForm({ servers, onSave, onCancel }) {
           <label className="label">Nom</label>
           <input required value={form.name} onChange={(e) => set('name', e.target.value)} className="input" placeholder="Sauvegarde prod quotidienne" />
         </div>
+
+        {/* Sélecteur type SSH / SFTP */}
         <div className="col-span-2">
-          <label className="label">Serveur SSH</label>
-          <select required value={form.sshServerId} onChange={(e) => set('sshServerId', e.target.value)} className="input">
-            <option value="">— Sélectionner —</option>
-            {servers.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.username}@{s.host})</option>)}
-          </select>
+          <label className="label">Type de connexion</label>
+          <div className="flex gap-2">
+            {[['ssh','SSH', Server], ['sftp','SFTP', HardDriveDownload]].map(([val, label, Icon]) => (
+              <button
+                key={val} type="button"
+                onClick={() => set('serverType', val)}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+                  form.serverType === val
+                    ? 'bg-brand/15 border-brand/40 text-brand'
+                    : 'bg-ink-700 border-ink-500 text-ink-300 hover:border-ink-400',
+                )}
+              >
+                <Icon size={12} /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="col-span-2">
+          <label className="label">Serveur {form.serverType.toUpperCase()}</label>
+          {form.serverType === 'ssh' ? (
+            <select required value={form.sshServerId} onChange={(e) => set('sshServerId', e.target.value)} className="input">
+              <option value="">— Sélectionner un serveur SSH —</option>
+              {sshServers.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.username}@{s.host})</option>)}
+            </select>
+          ) : (
+            <select required value={form.sftpServerId} onChange={(e) => set('sftpServerId', e.target.value)} className="input">
+              <option value="">— Sélectionner un serveur SFTP —</option>
+              {sftpServers.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.username}@{s.host})</option>)}
+            </select>
+          )}
         </div>
         <div className="col-span-2">
           <label className="label">Chemin distant</label>
@@ -120,16 +158,19 @@ export default function Schedules() {
   const { user } = useAuth();
   const canEdit  = user?.role === 'admin' || user?.role === 'responsable';
 
-  const [schedules, setSched]   = useState([]);
-  const [servers, setServers]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [expanded, setExpanded] = useState({});
-  const [acting, setActing]     = useState({});
+  const [schedules, setSched]     = useState([]);
+  const [sshServers, setSsh]      = useState([]);
+  const [sftpServers, setSftp]    = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [expanded, setExpanded]   = useState({});
+  const [acting, setActing]       = useState({});
 
   async function load() {
-    const [{ data: sched }, { data: srv }] = await Promise.all([api.get('/schedules'), api.get('/ssh-servers')]);
-    setSched(sched); setServers(srv); setLoading(false);
+    const [{ data: sched }, { data: ssh }, { data: sftp }] = await Promise.all([
+      api.get('/schedules'), api.get('/ssh-servers'), api.get('/sftp-servers'),
+    ]);
+    setSched(sched); setSsh(ssh); setSftp(sftp); setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
@@ -155,7 +196,7 @@ export default function Schedules() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Planifications</h1>
-          <p className="page-sub">Sauvegardes récurrentes automatisées via SSH</p>
+          <p className="page-sub">Sauvegardes récurrentes automatisées via SSH ou SFTP</p>
         </div>
         {canEdit && !showForm && (
           <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-1.5">
@@ -166,7 +207,7 @@ export default function Schedules() {
 
       {showForm && (
         <div className="mb-5">
-          <NewScheduleForm servers={servers} onSave={handleSave} onCancel={() => setShowForm(false)} />
+          <NewScheduleForm sshServers={sshServers} sftpServers={sftpServers} onSave={handleSave} onCancel={() => setShowForm(false)} />
         </div>
       )}
 
@@ -190,12 +231,25 @@ export default function Schedules() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-ink-50">{s.name}</p>
                       {statusBadge(s.status)}
+                      <span className={clsx(
+                        'flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold border',
+                        s.serverType === 'sftp'
+                          ? 'text-brand bg-brand/10 border-brand/20'
+                          : 'text-ink-300 bg-ink-600 border-ink-500',
+                      )}>
+                        {s.serverType === 'sftp' ? <HardDriveDownload size={9} /> : <Server size={9} />}
+                        {s.serverType?.toUpperCase() || 'SSH'}
+                      </span>
                       {s.lastStatus === 'error' && (
                         <span className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} /> Dernière erreur</span>
                       )}
                     </div>
                     <p className="text-xs text-ink-300 truncate font-mono mt-0.5">
-                      {s.sshServer ? `${s.sshServer.username}@${s.sshServer.host}:${s.remotePath}` : s.remotePath}
+                      {s.serverType === 'sftp' && s.sftpServer
+                        ? `${s.sftpServer.username}@${s.sftpServer.host}:${s.remotePath}`
+                        : s.sshServer
+                          ? `${s.sshServer.username}@${s.sshServer.host}:${s.remotePath}`
+                          : s.remotePath}
                     </p>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-ink-400">
                       <span className="font-mono">{s.cronExpression}</span>
