@@ -12,6 +12,7 @@ const busboy = require('busboy');
 const { sha256, sha256File, encryptAES, encryptFileToFile, createEncryptStream, decryptAES } = require('../services/crypto');
 const { encrypt: encryptCred, decrypt: decryptCred } = require('../services/credentials');
 const sshService = require('../services/ssh');
+const sftpService = require('../services/sftp');
 const db = require('../services/db');
 const { notify } = require('../services/notifications');
 const authMiddleware = require('../middleware/auth');
@@ -330,6 +331,163 @@ router.post('/remote', requireRole('admin', 'responsable'), async (req, res, nex
   } finally {
     if (ssh) { try { await sshService.closeConnection(ssh); } catch (_) {} }
     if (tmpPath) fs.unlink(tmpPath, () => {}); // seul fichier temp : le clair téléchargé via SSH
+  }
+});
+
+// POST /api/backups/sftp-remote — sauvegarde depuis un serveur SFTP
+router.post('/sftp-remote', requireRole('admin', 'responsable'), async (req, res, next) => {
+  let tmpPath = null;
+  let sftp = null;
+  try {
+    const { serverId, remotePath } = req.body;
+    if (!serverId || !remotePath) {
+      return res.status(400).json({ error: 'serverId et remotePath sont obligatoires' });
+    }
+
+    const server = await db.sftpServer.findUnique({ where: { id: serverId } });
+    if (!server) return res.status(404).json({ error: 'Serveur SFTP non trouvé' });
+    if (req.user.role !== 'admin' && server.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+
+    const credentials = JSON.parse(decryptCred(server.encryptedCredentials));
+
+    sftp = await sftpService.connect({
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      auth_type: server.authType,
+      credentials,
+    });
+
+    const { localPath, isDirectory } = await sftpService.fetchRemotePath(sftp, remotePath);
+    tmpPath = localPath;
+
+    await sftpService.closeConnection(sftp);
+    sftp = null;
+
+    const baseName = path.posix.basename(remotePath);
+    const fileName = isDirectory ? `${baseName}.tar.gz` : baseName;
+    const mimeType = isDirectory ? 'application/gzip' : 'application/octet-stream';
+    const size = fs.statSync(tmpPath).size;
+
+    const { stream: encStream, getHash } = createEncryptStream(
+      fs.createReadStream(tmpPath), env.MASTER_KEY,
+    );
+    const cid = await ipfs.addFromAsyncIterable(encStream, fileName);
+    const fileHash = getHash();
+
+    const backupId = randomUUID();
+    const entry = await fabric.submitTransaction(
+      'registerBackup',
+      backupId, cid, fileName, fileHash, String(size), mimeType,
+    );
+
+    await db.backupOwnership.create({ data: { backupId: entry.backupId, userId: req.user.sub } });
+
+    const sizeFmt = size >= 1073741824
+      ? `${(size / 1073741824).toFixed(2)} Go`
+      : `${(size / 1048576).toFixed(1)} Mo`;
+    notify(req.user.sub, 'backup_success', 'Sauvegarde SFTP créée',
+      `Fichier "${fileName}" depuis ${server.username}@${server.host}:${remotePath} (${sizeFmt}) sauvegardé.`);
+
+    res.status(201).json({
+      backupId: entry.backupId,
+      cid: entry.cid,
+      txId: entry.txId,
+      source: `${server.username}@${server.host}:${remotePath}`,
+    });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  } finally {
+    if (sftp) { try { await sftpService.closeConnection(sftp); } catch (_) {} }
+    if (tmpPath) fs.unlink(tmpPath, () => {});
+  }
+});
+
+// POST /api/backups/:id/restore-sftp — restaure vers un serveur SFTP
+router.post('/:id/restore-sftp', requireRole('admin', 'responsable'), async (req, res, next) => {
+  let tmpPath = null;
+  let sftp = null;
+  try {
+    const { sftp_server_id, destination_path, overwrite = false } = req.body;
+    if (!sftp_server_id || !destination_path) {
+      return res.status(400).json({ error: 'sftp_server_id et destination_path sont obligatoires' });
+    }
+
+    const entry = await fabric.evaluateTransaction('getBackup', req.params.id);
+
+    if (req.user.role === 'responsable') {
+      const own = await db.backupOwnership.findFirst({
+        where: { backupId: req.params.id, userId: req.user.sub },
+      });
+      if (!own) return res.status(403).json({ error: 'Accès refusé' });
+    }
+
+    const server = await db.sftpServer.findUnique({ where: { id: sftp_server_id } });
+    if (!server) return res.status(404).json({ error: 'Serveur SFTP non trouvé' });
+    if (req.user.role !== 'admin' && server.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: 'Accès refusé au serveur SFTP' });
+    }
+    const credentials = JSON.parse(decryptCred(server.encryptedCredentials));
+
+    const encrypted = await ipfs.cat(entry.cid);
+    const decrypted = decryptAES(encrypted, env.MASTER_KEY);
+
+    const computedHash = sha256(decrypted);
+    if (computedHash !== entry.fileHash) {
+      return res.status(422).json({ error: 'Intégrité compromise : le hash ne correspond pas' });
+    }
+
+    sftp = await sftpService.connect({
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      auth_type: server.authType,
+      credentials,
+    });
+
+    const destDir = destination_path.replace(/\/$/, '');
+    const destFilePath = `${destDir}/${entry.fileName}`;
+
+    const fileExists = await sftpService.remoteFileExists(sftp, destFilePath);
+    if (fileExists && !overwrite) {
+      return res.status(409).json({ error: 'Le fichier existe déjà à destination', fileExists: true, path: destFilePath });
+    }
+
+    await sftpService.mkdirRemote(sftp, destDir);
+
+    tmpPath = path.join(os.tmpdir(), `restore_sftp_${Date.now()}_${entry.fileName}`);
+    fs.writeFileSync(tmpPath, decrypted);
+    await sftpService.pushFile(sftp, tmpPath, destFilePath);
+
+    await sftpService.closeConnection(sftp);
+    sftp = null;
+
+    await fabric.submitTransaction(
+      'recordAuditEntry',
+      'restore_sftp',
+      req.params.id,
+      JSON.stringify({ destination: `${server.username}@${server.host}:${destFilePath}`, userId: req.user.sub }),
+    );
+
+    notify(req.user.sub, 'restore_success', 'Restauration SFTP terminée',
+      `Fichier "${entry.fileName}" restauré vers ${server.username}@${server.host}:${destFilePath}`);
+
+    res.json({
+      ok: true,
+      destination: `${server.username}@${server.host}:${destFilePath}`,
+      fileName: entry.fileName,
+      size: decrypted.length,
+    });
+  } catch (err) {
+    if (err.message?.includes('introuvable')) return res.status(404).json({ error: err.message });
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  } finally {
+    if (sftp) { try { await sftpService.closeConnection(sftp); } catch (_) {} }
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
   }
 });
 

@@ -5,7 +5,7 @@ import {
   Shield, HardDrive, CheckCircle, LayoutDashboard, LogOut,
   Server, CloudUpload, CalendarClock, Bell, ClipboardList, Network,
   Boxes, Activity, ChevronLeft, ChevronRight, Search, Settings,
-  Users, ShieldCheck, Cpu, RotateCcw, Command,
+  Users, ShieldCheck, Cpu, RotateCcw, Command, HardDriveDownload,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +29,8 @@ const NAV_GROUPS = [
       { to: '/network',    label: 'Réseau',      icon: Network },
       { to: '/deployment', label: 'Déploiement', icon: Boxes },
       { to: '/monitoring', label: 'Monitoring',  icon: Activity },
-      { to: '/ssh-servers',label: 'Serveurs SSH',icon: Server },
+      { to: '/ssh-servers',  label: 'Serveurs SSH',  icon: Server },
+      { to: '/sftp-servers', label: 'Serveurs SFTP', icon: HardDriveDownload },
     ],
   },
   {
@@ -194,6 +195,7 @@ function TopBar({ onOpenCommand }) {
     '/deployment':    'Déploiement',
     '/monitoring':    'Monitoring',
     '/ssh-servers':   'Serveurs SSH',
+    '/sftp-servers':  'Serveurs SFTP',
     '/audit':         'Audit',
     '/users':         'Utilisateurs',
     '/security':      'Sécurité',
@@ -238,6 +240,7 @@ const ALL_PAGES = [
   { label: 'Déploiement',     to: '/deployment',    icon: Boxes },
   { label: 'Monitoring',      to: '/monitoring',    icon: Activity },
   { label: 'Serveurs SSH',    to: '/ssh-servers',   icon: Server },
+  { label: 'Serveurs SFTP',  to: '/sftp-servers',  icon: HardDriveDownload },
   { label: 'Audit',           to: '/audit',         icon: ClipboardList },
   { label: 'Utilisateurs',    to: '/users',         icon: Users },
   { label: 'Sécurité',        to: '/security',      icon: ShieldCheck },

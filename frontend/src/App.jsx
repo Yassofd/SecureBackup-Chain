@@ -11,6 +11,7 @@ import Backups from './pages/Backups';
 import BackupDetail from './pages/BackupDetail';
 import Verify from './pages/Verify';
 import SshServers from './pages/SshServers';
+import SftpServers from './pages/SftpServers';
 import RemoteBackup from './pages/RemoteBackup';
 import Schedules from './pages/Schedules';
 import Notifications from './pages/Notifications';
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="backups/:id" element={<BackupDetail />} />
         <Route path="verify" element={<Verify />} />
         <Route path="ssh-servers" element={<SshServers />} />
+        <Route path="sftp-servers" element={<SftpServers />} />
         <Route path="remote-backup" element={<RemoteBackup />} />
         <Route path="schedules" element={<Schedules />} />
         <Route path="notifications" element={<Notifications />} />

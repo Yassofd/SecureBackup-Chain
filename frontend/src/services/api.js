@@ -62,6 +62,19 @@ export const sshServersApi = {
   test: (id) => api.post(`/ssh-servers/${id}/test`),
 };
 
+export const sftpServersApi = {
+  list:   ()         => api.get('/sftp-servers'),
+  create: (data)     => api.post('/sftp-servers', data),
+  update: (id, data) => api.put(`/sftp-servers/${id}`, data),
+  delete: (id)       => api.delete(`/sftp-servers/${id}`),
+  test:   (id)       => api.post(`/sftp-servers/${id}/test`),
+};
+
+export const backupsSftpApi = {
+  backupFrom: (data)     => api.post('/backups/sftp-remote', data),
+  restoreTo:  (id, data) => api.post(`/backups/${id}/restore-sftp`, data),
+};
+
 export const notificationsApi = {
   list: () => api.get('/notifications'),
   markRead: (id) => api.patch(`/notifications/${id}/read`),
