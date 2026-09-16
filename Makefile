@@ -4,7 +4,8 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 .PHONY: help install start stop restart status logs logs-backend logs-fabric \
-        backup update shell-backend shell-db reset-password purge init-network
+        backup update shell-backend shell-db reset-password purge init-network \
+        fix-docker-net
 
 # Couleurs
 BOLD  := $(shell tput bold 2>/dev/null || echo '')
@@ -85,6 +86,22 @@ update: ## Mettre à jour l'application (pull + rebuild + restart)
 	@docker compose build backend frontend
 	@docker compose up -d backend frontend
 	@echo "  ✓ Application mise à jour"
+
+fix-docker-net: ## Neutraliser les règles iptables-legacy résiduelles (Dev Container / Codespaces)
+	@echo "  → Contrôle du pare-feu Docker (iptables legacy résiduel)..."
+	@if [ -r /proc/net/ip_tables_names ] && grep -q filter /proc/net/ip_tables_names 2>/dev/null; then \
+		sudo iptables-legacy -P FORWARD ACCEPT 2>/dev/null \
+			&& echo "  ✓ Politique FORWARD de la table legacy neutralisée" \
+			|| echo "  ⚠ À exécuter manuellement : sudo iptables-legacy -P FORWARD ACCEPT"; \
+	else \
+		echo "  ⓘ Aucune table iptables-legacy détectée — rien à faire"; \
+	fi
+	@echo "  → Redémarrage du backend..."
+	@docker compose up -d --force-recreate backend
+	@echo "  → Vérification (ping inter-conteneurs)..."
+	@docker exec backup-cc ping -c 1 -W 2 securebackup-db >/dev/null 2>&1 \
+		&& echo "  ✓ Réseau inter-conteneurs opérationnel" \
+		|| echo "  ⚠ Le réseau inter-conteneurs reste bloqué — voir docs/troubleshooting.md"
 
 init-network: ## Ré-initialiser le réseau Fabric (si le canal n'existe pas encore)
 	@echo "  → Initialisation du réseau Fabric..."

@@ -342,6 +342,50 @@ sudo kill -9 <PID>   # Le tuer
 # Ou changer le port dans docker-compose.yaml
 ```
 
+### Backend en boucle — `P1001: Can't reach database server at db:5432`
+
+**Symptôme** : le conteneur `securebackup-backend` redémarre en boucle et ses logs affichent :
+```
+[entrypoint] Applying database schema...
+Error: P1001: Can't reach database server at `db:5432`
+Please make sure your database server is running at `db:5432`.
+```
+alors que `securebackup-db` est `Up (healthy)` (`docker ps`).
+
+**Cause** : ce n'est ni Prisma, ni un mot de passe, ni `docker-compose.yml`. Le trafic **conteneur → conteneur** est bloqué par le pare-feu de l'hôte. Sur les environnements **Docker-in-Docker** (Dev Container / GitHub Codespaces), les règles de l'ancien backend `iptables-legacy` peuvent subsister à côté des règles nftables utilisées par le démon courant. Le noyau évalue **les deux** jeux de règles : le `-P FORWARD DROP` de la table legacy — qui ne contient de règles que pour `docker0` (inactif) — jette silencieusement tous les paquets *conteneur ↔ conteneur* et *conteneur → Internet*. Le DNS Docker (127.0.0.11) et l'ARP continuent de fonctionner, d'où l'illusion d'un réseau sain.
+
+Indices caractéristiques :
+- TCP entre deux conteneurs du même réseau : `i/o timeout` (**et non** `connection refused`)
+- `docker exec backup-cc ping -c 1 securebackup-db` : 100 % de perte
+- hôte → conteneur : fonctionne (`curl http://localhost/api/health` répond)
+- Fabric KO : le peer ne joint pas CouchDB, le channel n'est pas créé, `CHAINCODE_ID=backup-cc_1.0:PENDING` dans `.env`
+
+**Diagnostic** :
+```bash
+# 1. Le port écoute bien DANS le conteneur (donc le problème est sur le chemin réseau)
+docker exec securebackup-db pg_isready -h 172.18.0.2 -p 5432   # accepting connections
+
+# 2. Connectivité conteneur -> conteneur (100 % de perte = pare-feu)
+docker exec backup-cc ping -c 1 securebackup-db
+
+# 3. Comparer les deux jeux de règles : le legacy est le coupable
+sudo iptables -S | head -20          # backend actif (nftables) : règles correctes
+sudo iptables-legacy -S | head -20   # « -P FORWARD DROP » + règles docker0 uniquement
+```
+
+**Solution** :
+```bash
+sudo iptables-legacy -P FORWARD ACCEPT
+docker compose up -d --force-recreate backend
+```
+Vérification : `docker exec backup-cc ping -c 1 securebackup-db` doit renvoyer `0% packet loss`,
+puis les logs du backend doivent afficher `The database is already in sync with the Prisma schema`.
+
+Le correctif est **perdu à chaque redémarrage du démon Docker** dans ces environnements : le rejouer avec
+`make fix-docker-net` (ou relancer `install.sh`, qui l'applique automatiquement).
+
+---
+
 ## Déploiement multi-machines
 
 ### Les machines ne se voient pas

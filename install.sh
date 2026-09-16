@@ -67,6 +67,26 @@ docker info >/dev/null 2>&1 || abort "Docker ne répond pas. Démarrez le servic
 
 log "Prérequis OK"
 
+# ── Correctif pare-feu Docker-in-Docker ─────────────────────────────────────
+# En Dev Container / Codespaces, d'anciennes règles iptables-legacy peuvent
+# subsister à côté des règles nftables du démon Docker. Leur politique
+# « FORWARD DROP » (elles ne connaissent que docker0) jette alors tout le trafic
+# conteneur -> conteneur, ce qui casse Prisma (« P1001: Can't reach database
+# server at db:5432 »), la jointure du peer avec CouchDB, etc. On neutralise
+# cette politique quand elle est manifestement résiduelle.
+if [ -r /proc/net/ip_tables_names ] && grep -q filter /proc/net/ip_tables_names 2>/dev/null; then
+  LEGACY_RULES="$(iptables-legacy -S 2>/dev/null || true)"
+  if [ -n "$LEGACY_RULES" ] && ! grep -q 'br-' <<<"$LEGACY_RULES" \
+     && ls -d /sys/class/net/br-* >/dev/null 2>&1; then
+    if iptables-legacy -P FORWARD ACCEPT 2>/dev/null; then
+      info "Règles iptables-legacy résiduelles neutralisées (FORWARD -> ACCEPT)"
+    else
+      warn "iptables-legacy résiduel détecté — exécutez : sudo iptables-legacy -P FORWARD ACCEPT"
+      warn "sinon les conteneurs ne peuvent pas communiquer entre eux (erreur Prisma P1001)"
+    fi
+  fi
+fi
+
 # ── [1] Configuration interactive ───────────────────────────────────────────
 step "1/7" "Configuration"
 
