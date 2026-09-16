@@ -78,21 +78,31 @@ if [ -z "$PACKAGE_ID" ]; then
   echo "   Package ID détecté : $PACKAGE_ID"
 fi
 
-[ -z "$PACKAGE_ID" ] && echo "ERROR: Impossible de trouver le Package ID" && exit 1
+if [ -z "$PACKAGE_ID" ]; then
+  echo "ERROR: Impossible de trouver le Package ID"
+  exit 1
+fi
 
 # Écrire le package ID dans network/.chaincode-id (accessible depuis l'hôte car /network est monté)
 echo "$PACKAGE_ID" > "$NETWORK_DIR/.chaincode-id"
 
 # Mettre à jour CHAINCODE_ID dans le .env racine
+# if/else explicite : sous `set -e`, `python3 ... || awk ... && mv ...` se lit
+# `(python3 || awk) && mv` — quand python3 réussit, `mv` est appelé sans argument,
+# échoue et interrompt le script AVANT l'approbation/commit du chaincode.
 if [ -f "$ROOT_DIR/.env" ]; then
-  python3 -c "
-import re, sys
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import re
 content = open('$ROOT_DIR/.env').read()
 content = re.sub(r'^CHAINCODE_ID=.*', 'CHAINCODE_ID=$PACKAGE_ID', content, flags=re.MULTILINE)
 open('$ROOT_DIR/.env', 'w').write(content)
-" 2>/dev/null || \
-  awk -v id="$PACKAGE_ID" '/^CHAINCODE_ID=/{print "CHAINCODE_ID="id; next}1' \
-    "$ROOT_DIR/.env" > "$ROOT_DIR/.env.tmp" && mv "$ROOT_DIR/.env.tmp" "$ROOT_DIR/.env"
+"
+  else
+    awk -v id="$PACKAGE_ID" '/^CHAINCODE_ID=/{print "CHAINCODE_ID="id; next}1' \
+      "$ROOT_DIR/.env" > "$ROOT_DIR/.env.tmp" \
+      && mv "$ROOT_DIR/.env.tmp" "$ROOT_DIR/.env"
+  fi
   echo "   .env mis à jour : CHAINCODE_ID=$PACKAGE_ID"
 fi
 
