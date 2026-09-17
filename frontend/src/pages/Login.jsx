@@ -4,12 +4,6 @@ import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const DEMO = [
-  { email: 'admin@securebackup.local',       password: 'Admin@1234!',  role: 'admin',       badge: 'badge-red'   },
-  { email: 'responsable@securebackup.local', password: 'Resp@1234!',   role: 'responsable', badge: 'badge-blue'  },
-  { email: 'auditeur@securebackup.local',    password: 'Audit@1234!',  role: 'auditeur',    badge: 'badge-green' },
-];
-
 export default function Login() {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -115,25 +109,6 @@ export default function Login() {
                   : mfaReq ? 'Vérifier' : 'Se connecter'}
               </button>
             </form>
-
-            {/* Demo accounts */}
-            <div className="mt-5 pt-5 border-t border-ink-600">
-              <p className="text-[10px] text-ink-400 uppercase tracking-widest font-semibold mb-3">Comptes de démo</p>
-              <div className="space-y-1.5">
-                {DEMO.map((u) => (
-                  <button
-                    key={u.role}
-                    onClick={() => { setEmail(u.email); setPassword(u.password); setMfaReq(false); setError(''); }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg
-                               bg-ink-600 hover:bg-ink-550 border border-ink-500 hover:border-brand/30
-                               text-left transition-all group"
-                  >
-                    <span className="text-xs text-ink-200 group-hover:text-ink-50 truncate transition-colors">{u.email}</span>
-                    <span className={u.badge + ' ml-2 shrink-0'}>{u.role}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </div>
