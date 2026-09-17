@@ -148,7 +148,7 @@ function NotificationBell({ collapsed }) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-full ml-2 bottom-0 w-80 bg-ink-700/95 backdrop-blur-sm border border-ink-500/70 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-50 overflow-hidden"
+            className="absolute left-full ml-2 bottom-0 w-80 bg-ink-700/95 backdrop-blur-sm border border-ink-500/70 rounded-xl shadow-[0_8px_32px_rgb(var(--c-shadow-pop))] z-50 overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-ink-500/50 bg-ink-800/80">
               <span className="text-xs font-semibold text-ink-50 uppercase tracking-wide">Notifications</span>
@@ -220,7 +220,7 @@ function TopBar({ onOpenCommand }) {
       {/* Search / Command palette trigger */}
       <button
         onClick={onOpenCommand}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink-700/60 border border-ink-600/60 text-ink-400 hover:text-ink-200 hover:border-ink-500 transition-all text-xs"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ink-600/60 border border-ink-600/60 text-ink-400 hover:text-ink-200 hover:border-ink-500 transition-all text-xs"
       >
         <Search size={12} />
         <span className="hidden sm:inline">Rechercher…</span>
@@ -271,13 +271,13 @@ function CommandPalette({ open, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4">
-      <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-veil backdrop-blur-sm" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.97, y: -8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: -8 }}
         transition={{ duration: 0.15 }}
-        className="relative w-full max-w-md bg-ink-800 border border-ink-600 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.6)] overflow-hidden"
+        className="relative w-full max-w-md bg-ink-800 border border-ink-600 rounded-2xl shadow-[0_24px_64px_rgb(var(--c-shadow-modal))] overflow-hidden"
       >
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-ink-600">
           <Search size={14} className="text-ink-400 shrink-0" />
