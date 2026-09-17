@@ -1,5 +1,5 @@
 /**
- * Palette SecureBackup-Chain — dérivée du logo.
+ * Palette DATABLOCKNET-Chain — dérivée du logo.
  *
  * Le logo est composé de trois hexagones en dégradé :
  *   • partie gauche  → #6B3EE2  (violet-bleu)   RGB 107, 62, 226

@@ -206,7 +206,7 @@ function TopBar({ onOpenCommand }) {
     '/notifications': 'Notifications',
   };
 
-  const pageTitle = crumbs[location.pathname] || 'SecureBackup';
+  const pageTitle = crumbs[location.pathname] || 'DATABLOCKNET';
 
   return (
     <div
@@ -345,7 +345,7 @@ export default function Layout() {
         <div className="h-14 flex items-center px-4 border-b border-ink-line shrink-0">
           <div className="flex items-center gap-3 overflow-hidden min-w-0">
             <img
-              src="/logo.png" alt="SecureBackup-Chain"
+              src="/logo.png" alt="DATABLOCKNET-Chain"
               className="w-9 h-9 shrink-0 object-contain"
             />
             <AnimatePresence>
@@ -357,7 +357,7 @@ export default function Layout() {
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden min-w-0"
                 >
-                  <p className="text-[13px] font-bold text-ink-50 leading-none tracking-tight whitespace-nowrap">SecureBackup</p>
+                  <p className="text-[13px] font-bold text-ink-50 leading-none tracking-tight whitespace-nowrap">DATABLOCKNET</p>
                   <p className="text-[10px] text-ink-400 mt-0.5 font-mono tracking-wide whitespace-nowrap">Chain Edition</p>
                 </motion.div>
               )}

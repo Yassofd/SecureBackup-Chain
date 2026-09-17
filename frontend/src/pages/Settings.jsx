@@ -72,7 +72,7 @@ export default function Settings() {
     try {
       const { data } = await api.get('/admin/export-config', { responseType: 'blob' });
       const url = URL.createObjectURL(data);
-      const a = document.createElement('a'); a.href = url; a.download = 'securebackup-config.tar.gz.enc'; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = 'datablocknet-config.tar.gz.enc'; a.click();
       URL.revokeObjectURL(url);
     } catch (err) { alert(err.response?.data?.error || err.message); }
     finally { setExp(false); }
