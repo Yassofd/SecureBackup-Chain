@@ -474,9 +474,10 @@ export default function Setup() {
     <div className="min-h-screen bg-ink-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-brand/15 border border-brand/30 rounded-2xl mb-4">
-            <Shield className="text-brand" size={26} />
-          </div>
+          <img
+            src="/logo.png" alt="SecureBackup-Chain"
+            className="block w-16 h-16 mx-auto mb-4 object-contain"
+          />
           <h1 className="text-2xl font-bold text-ink-50">Configuration initiale</h1>
           <p className="text-ink-400 text-sm mt-1">SecureBackup-Chain — {STEPS[step].label}</p>
         </div>

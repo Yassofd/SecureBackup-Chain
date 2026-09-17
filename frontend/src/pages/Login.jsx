@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -42,9 +42,10 @@ export default function Login() {
       <div className="w-full max-w-sm relative z-10">
         {/* Logo + title */}
         <div className="text-center mb-7">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-brand/[0.12] border border-brand/25 rounded-2xl mb-4">
-            <Shield size={24} className="text-brand" />
-          </div>
+          <img
+            src="/logo.png" alt="SecureBackup-Chain"
+            className="block w-16 h-16 mx-auto mb-4 object-contain"
+          />
           <h1 className="text-2xl font-bold text-ink-50 tracking-tight">SecureBackup-Chain</h1>
           <p className="text-ink-300 text-sm mt-1">Connexion sécurisée</p>
         </div>

@@ -2,7 +2,7 @@ import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Shield, HardDrive, CheckCircle, LayoutDashboard, LogOut,
+  HardDrive, CheckCircle, LayoutDashboard, LogOut,
   Server, CloudUpload, CalendarClock, Bell, ClipboardList, Network,
   Boxes, Activity, ChevronLeft, ChevronRight, Search, Settings,
   Users, ShieldCheck, Cpu, RotateCcw, Command, HardDriveDownload,
@@ -340,16 +340,10 @@ export default function Layout() {
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-ink-700/80 shrink-0">
           <div className="flex items-center gap-3 overflow-hidden min-w-0">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, rgba(0,180,216,0.25) 0%, rgba(139,92,246,0.16) 100%)',
-                border: '1px solid rgba(0,180,216,0.3)',
-                boxShadow: '0 0 18px rgba(0,180,216,0.22), inset 0 1px 0 rgba(255,255,255,0.08)',
-              }}
-            >
-              <Shield size={15} className="text-brand" style={{ filter: 'drop-shadow(0 0 5px rgba(0,180,216,0.7))' }} />
-            </div>
+            <img
+              src="/logo.png" alt="SecureBackup-Chain"
+              className="w-9 h-9 shrink-0 object-contain"
+            />
             <AnimatePresence>
               {!collapsed && (
                 <motion.div
