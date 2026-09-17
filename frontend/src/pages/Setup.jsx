@@ -480,11 +480,11 @@ export default function Setup() {
       <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
           <img
-            src="/logo.png" alt="DATABLOCKNET-Chain"
+            src="/logo.png" alt="DATABLOCKNET"
             className="block w-16 h-16 mx-auto mb-4 object-contain"
           />
           <h1 className="text-2xl font-bold text-ink-50">Configuration initiale</h1>
-          <p className="text-ink-400 text-sm mt-1">DATABLOCKNET-Chain — {STEPS[step].label}</p>
+          <p className="text-ink-400 text-sm mt-1">DATABLOCKNET — {STEPS[step].label}</p>
         </div>
 
         <div className="bg-ink-700 border border-ink-500 rounded-2xl shadow-2xl p-8">

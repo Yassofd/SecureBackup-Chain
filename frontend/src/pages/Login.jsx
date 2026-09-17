@@ -50,10 +50,10 @@ export default function Login() {
         {/* Logo + title */}
         <div className="text-center mb-7">
           <img
-            src="/logo.png" alt="DATABLOCKNET-Chain"
+            src="/logo.png" alt="DATABLOCKNET"
             className="block w-16 h-16 mx-auto mb-4 object-contain"
           />
-          <h1 className="text-2xl font-bold text-ink-50 tracking-tight">DATABLOCKNET-Chain</h1>
+          <h1 className="text-2xl font-bold text-ink-50 tracking-tight">DATABLOCKNET</h1>
           <p className="text-ink-300 text-sm mt-1">Connexion sécurisée</p>
         </div>
 
