@@ -80,6 +80,22 @@ export default {
         indigo:  { 400: 'rgb(var(--c-indigo-400) / <alpha-value>)' },
         blue:    { 400: 'rgb(var(--c-blue-400) / <alpha-value>)' },
       },
+      /* ── Rayons resserrés ────────────────────────────────────────────────
+         Le rendu était « trop arrondi » : l'échelle est ramenée près des
+         valeurs standard de Tailwind (DEFAULT = 4 px).
+            lg   →  6 px    boutons, champs, entrées de navigation
+            xl   →  5,6 px  cartes (.card, .panel, StatCard, modales…)
+            2xl  →  8 px    grands conteneurs, palette de commandes
+
+         `.card` et `.panel` (index.css) puisent dans `xl` : toutes les cartes
+         de l'application suivent donc ce réglage sans modification du JSX.
+         `rounded` (4 px, déjà proche du « normal ») et `rounded-full`
+         (pastilles, badges) restent inchangés.                        */
+      borderRadius: {
+        lg:    '0.375rem',
+        xl:    '0.35rem',
+        '2xl': '0.5rem',
+      },
       boxShadow: {
         'glow-brand':   '0 0 20px rgb(var(--c-brand-500) / 0.25), 0 0 6px rgb(var(--c-accent-500) / 0.14)',
         'glow-brand-sm':'0 0 10px rgb(var(--c-brand-500) / 0.20)',
