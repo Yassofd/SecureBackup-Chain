@@ -43,7 +43,7 @@ export default function BackupRow({ backup }) {
       <td className="td text-right pr-5">
         <button
           onClick={handleDownload}
-          className="text-ink-500 hover:text-brand transition-colors opacity-0 group-hover:opacity-100"
+          className="text-ink-ghost hover:text-brand transition-colors opacity-0 group-hover:opacity-100"
           title="Télécharger"
         >
           <Download size={14} />

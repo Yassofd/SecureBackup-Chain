@@ -91,7 +91,7 @@ export default function Network() {
                   : 'bg-ink-400'
                 }`} />
                 {gs === 'healthy' ? 'Réseau sain' : gs === 'degraded' ? 'Dégradé' : 'Inconnu'}
-                <span className="text-ink-500 font-normal">({health.online}/{health.total})</span>
+                <span className="text-ink-ghost font-normal">({health.online}/{health.total})</span>
               </div>
             )}
             <button
@@ -126,7 +126,7 @@ export default function Network() {
           <div className="flex flex-col items-center justify-center h-full text-ink-400">
             <Radio size={40} className="mb-3 opacity-25" />
             <p className="text-sm font-medium">Aucun nœud détecté</p>
-            <p className="text-xs text-ink-500 mt-1">Vérifiez que le réseau Fabric est démarré</p>
+            <p className="text-xs text-ink-ghost mt-1">Vérifiez que le réseau Fabric est démarré</p>
           </div>
         ) : (
           <NetworkCanvas

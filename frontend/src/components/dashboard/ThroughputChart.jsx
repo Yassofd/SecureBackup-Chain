@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
+import { rgba } from '../../theme/palette';
 
 function ts() { return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
 
@@ -15,6 +17,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function ThroughputChart() {
+  const { chart } = useTheme();
   const [data, setData] = useState(() =>
     Array.from({ length: 20 }, (_, i) => ({
       t: ts(),
@@ -38,7 +41,7 @@ export default function ThroughputChart() {
   return (
     <div className="panel h-full flex flex-col">
       <div className="panel-header">
-        <span className="panel-title flex items-center gap-2"><Activity size={13} className="text-purple-400" /> Activité temps réel</span>
+        <span className="panel-title flex items-center gap-2"><Activity size={13} className="text-accent" /> Activité temps réel</span>
         <span className="flex items-center gap-1.5 text-xs text-emerald-400">
           <span className="dot-live" /> Live
         </span>
@@ -47,18 +50,18 @@ export default function ThroughputChart() {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
             <defs>
-              <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
+              <linearGradient id="grad-accent" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chart.accent} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={chart.accent} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(48,48,88,0.5)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="t" tick={{ fontSize: 8, fill: '#6565a0' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-            <YAxis tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(139,92,246,0.3)', strokeWidth: 1 }} />
-            <Area type="monotone" dataKey="v" stroke="#8b5cf6" strokeWidth={2}
-              fill="url(#grad-purple)" dot={false}
-              activeDot={{ r: 3, strokeWidth: 0, fill: '#8b5cf6' }} />
+            <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="t" tick={{ fontSize: 8, fill: chart.tick }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: rgba(chart.accent, 0.35), strokeWidth: 1 }} />
+            <Area type="monotone" dataKey="v" stroke={chart.accent} strokeWidth={2}
+              fill="url(#grad-accent)" dot={false}
+              activeDot={{ r: 3, strokeWidth: 0, fill: chart.accent }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>

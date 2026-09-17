@@ -1,6 +1,9 @@
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { useTheme } from '../../context/ThemeContext';
 
-export default function MiniSparkline({ data = [], color = '#00b4d8', height = 40 }) {
+export default function MiniSparkline({ data = [], color, height = 40 }) {
+  const { chart } = useTheme();
+  const stroke = color || chart.brand;
   const points = data.map((v, i) => ({ v }));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -8,7 +11,7 @@ export default function MiniSparkline({ data = [], color = '#00b4d8', height = 4
         <Line
           type="monotone"
           dataKey="v"
-          stroke={color}
+          stroke={stroke}
           strokeWidth={1.5}
           dot={false}
           activeDot={false}

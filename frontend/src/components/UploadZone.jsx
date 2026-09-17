@@ -3,6 +3,8 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, CheckCircle, AlertCircle, Loader2, Lock, Clock, Zap, Pause, Play, X } from 'lucide-react';
 import clsx from 'clsx';
 import api from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import { rgba } from '../theme/palette';
 
 const CHUNK_SIZE      = 5 * 1024 * 1024;   // 5 Mo par requête (résistant au timeout tunnel)
 const CHUNK_THRESHOLD = 20 * 1024 * 1024;  // chunked pour fichiers > 20 Mo
@@ -34,6 +36,8 @@ export default function UploadZone({ onSuccess }) {
   const [eta,       setEta]       = useState(null);
   const [paused,    setPaused]    = useState(false);
   const [chunked,   setChunked]   = useState(false); // true = upload chunked en cours
+
+  const { chart, status: themeStatus } = useTheme();
 
   const startRef     = useRef(null);
   const prevRef      = useRef({ loaded: 0, time: 0 });
@@ -211,10 +215,10 @@ export default function UploadZone({ onSuccess }) {
           status === 'uploading' && 'pointer-events-none opacity-60',
         )}
         style={isDragActive ? {
-          background: 'radial-gradient(ellipse at center, rgba(0,180,216,0.10) 0%, rgba(0,180,216,0.04) 60%, transparent 100%)',
-          boxShadow:  '0 0 30px rgba(0,180,216,0.18), inset 0 0 20px rgba(0,180,216,0.06)',
+          background: `radial-gradient(ellipse at center, ${rgba(chart.brand, 0.10)} 0%, ${rgba(chart.brand, 0.04)} 60%, transparent 100%)`,
+          boxShadow:  `0 0 30px ${rgba(chart.brand, 0.18)}, inset 0 0 20px ${rgba(chart.brand, 0.06)}`,
         } : {
-          background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.02) 0%, transparent 70%)',
+          background: 'rgb(var(--c-ink-500) / 0.12)',
         }}
       >
         <input {...getInputProps()} />
@@ -222,12 +226,12 @@ export default function UploadZone({ onSuccess }) {
         <div
           className="w-11 h-11 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-200"
           style={isDragActive ? {
-            background: 'linear-gradient(135deg, rgba(0,180,216,0.25) 0%, rgba(139,92,246,0.15) 100%)',
-            border: '1px solid rgba(0,180,216,0.4)',
-            boxShadow: '0 0 20px rgba(0,180,216,0.3)',
+            background: 'linear-gradient(135deg, rgb(var(--c-brand-500) / 0.30) 0%, rgb(var(--c-accent-500) / 0.20) 100%)',
+            border: '1px solid rgb(var(--c-brand-500) / 0.45)',
+            boxShadow: '0 0 20px rgb(var(--c-brand-500) / 0.35)',
           } : {
-            background: 'rgba(255,255,255,0.04)',
-            border:     '1px solid rgba(255,255,255,0.08)',
+            background: 'rgb(var(--c-ink-600) / 0.6)',
+            border:     '1px solid rgb(var(--c-ink-500) / 0.8)',
           }}
         >
           {status === 'uploading'
@@ -235,7 +239,7 @@ export default function UploadZone({ onSuccess }) {
                 ? <Pause size={18} className="text-amber-400" />
                 : <Loader2 size={18} className="text-brand animate-spin" />)
             : <Upload size={18} className={isDragActive ? 'text-brand' : 'text-ink-300'}
-                style={isDragActive ? { filter: 'drop-shadow(0 0 6px rgba(0,180,216,0.8))' } : {}} />
+                style={isDragActive ? { filter: 'drop-shadow(0 0 6px rgb(var(--c-brand-500) / 0.8))' } : {}} />
           }
         </div>
 
@@ -259,11 +263,11 @@ export default function UploadZone({ onSuccess }) {
               style={{
                 width:      `${progress}%`,
                 background: paused
-                  ? 'linear-gradient(90deg, #92400e, #f59e0b, #fcd34d)'
-                  : 'linear-gradient(90deg, #007d98, #00b4d8, #4ddce9)',
+                  ? `linear-gradient(90deg, #92400e, ${themeStatus.warn}, #fcd34d)`
+                  : 'linear-gradient(90deg, #5530B8, #6B3EE2, #9B7BF5)',
                 boxShadow: paused
-                  ? '0 0 8px rgba(245,158,11,0.5)'
-                  : '0 0 8px rgba(0,180,216,0.5)',
+                  ? `0 0 8px ${rgba(themeStatus.warn, 0.5)}`
+                  : `0 0 8px ${rgba(chart.brand, 0.5)}`,
               }}
             />
           </div>
@@ -308,14 +312,14 @@ export default function UploadZone({ onSuccess }) {
                 onClick={handlePauseResume}
                 className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 active:scale-95"
                 style={paused ? {
-                  background: 'rgba(0,180,216,0.12)',
-                  border:     '1px solid rgba(0,180,216,0.35)',
-                  color:      '#00b4d8',
-                  boxShadow:  '0 0 10px rgba(0,180,216,0.15)',
+                  background: rgba(chart.brand, 0.12),
+                  border:     `1px solid ${rgba(chart.brand, 0.35)}`,
+                  color:      chart.brand,
+                  boxShadow:  `0 0 10px ${rgba(chart.brand, 0.15)}`,
                 } : {
-                  background: 'rgba(245,158,11,0.10)',
-                  border:     '1px solid rgba(245,158,11,0.30)',
-                  color:      '#f59e0b',
+                  background: rgba(themeStatus.warn, 0.10),
+                  border:     `1px solid ${rgba(themeStatus.warn, 0.30)}`,
+                  color:      themeStatus.warn,
                 }}
               >
                 {paused
@@ -330,9 +334,9 @@ export default function UploadZone({ onSuccess }) {
               onClick={handleCancel}
               className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 active:scale-95"
               style={{
-                background: 'rgba(239,68,68,0.08)',
-                border:     '1px solid rgba(239,68,68,0.25)',
-                color:      '#f87171',
+                background: rgba(themeStatus.crit, 0.08),
+                border:     `1px solid ${rgba(themeStatus.crit, 0.25)}`,
+                color:      themeStatus.crit,
               }}
             >
               <X size={12} /> Annuler

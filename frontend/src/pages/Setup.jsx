@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import clsx from 'clsx';
+import ThemeToggle from '../components/ThemeToggle';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -398,7 +399,7 @@ function Step5() {
                 : 'text-ink-200',
               )}>{l.text}</div>
             ))}
-            {phase === 'running' && <span className="text-ink-500 animate-pulse">▋</span>}
+            {phase === 'running' && <span className="text-ink-ghost animate-pulse">▋</span>}
           </div>
         </div>
       )}
@@ -471,7 +472,11 @@ export default function Setup() {
   const back = () => setStep(s => s - 1);
 
   return (
-    <div className="min-h-screen bg-ink-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-ink-900 flex items-center justify-center p-4 relative">
+      {/* Bascule thème clair / sombre */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle variant="solid" />
+      </div>
       <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
           <img
@@ -491,7 +496,7 @@ export default function Setup() {
           {step === 4 && <Step5 serverHost={server.host} />}
         </div>
 
-        <p className="text-center text-ink-500 text-xs mt-4">
+        <p className="text-center text-ink-ghost text-xs mt-4">
           Étape {step + 1} sur {STEPS.length}
         </p>
       </div>

@@ -172,7 +172,7 @@ function SectionTitle({ children }) {
 function GaugeMetric({ icon: Icon, label, value, unit, color }) {
   return (
     <div className="flex items-center gap-3">
-      <Icon className="w-4 h-4 text-ink-500 shrink-0" />
+      <Icon className="w-4 h-4 text-ink-ghost shrink-0" />
       <div className="flex-1">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-ink-300">{label}</span>
@@ -195,7 +195,7 @@ function InfoCard({ icon: Icon, label, value }) {
   return (
     <div className="rounded-lg bg-ink-700/40 p-2.5 ring-1 ring-ink-500/20">
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon className="w-3 h-3 text-ink-500" />
+        <Icon className="w-3 h-3 text-ink-ghost" />
         <span className="text-[10px] text-ink-400">{label}</span>
       </div>
       <div className="text-xs font-medium text-ink-100 tabular-nums truncate">{value}</div>

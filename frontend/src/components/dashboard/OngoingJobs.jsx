@@ -51,7 +51,7 @@ export default function OngoingJobs() {
           Aucune sauvegarde
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto divide-y divide-ink-700/60">
+        <div className="flex-1 overflow-y-auto divide-y divide-ink-line">
           {backups.map((b) => {
             const cfg = STATUS_CFG[b.status] ?? STATUS_CFG.completed;
             const Icon = cfg.icon;

@@ -1,10 +1,13 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useTheme } from '../../context/ThemeContext';
+import { rgba, hexRgb } from '../../theme/palette';
 
 /**
  * Canvas network renderer — port de chainbackup-nexus/NetworkCanvas.tsx
  * Accepte `nodes` (tableau de nœuds adaptés) au lieu du tableau statique.
  */
 export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId }) {
+  const { isDark, chart, status: themeStatus } = useTheme();
   const canvasRef    = useRef(null);
   const animRef      = useRef(0);
   const positionsRef = useRef([]);
@@ -75,6 +78,9 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
+    const brand    = chart.brand;
+    const brandRgb = hexRgb(brand);
+    const okDot    = isDark ? '#22C55E' : '#047857';
 
     const draw = () => {
       timeRef.current += 0.016;
@@ -109,8 +115,8 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
           const b = positions[j];
           if (!a || !b) continue;
 
-          ctx.strokeStyle = `rgba(0, 180, 216, ${0.12 + Math.sin(t * 2 + i + j) * 0.05})`;
-          ctx.shadowColor = 'rgba(0, 180, 216, 0.25)';
+          ctx.strokeStyle = `rgba(${brandRgb}, ${0.12 + Math.sin(t * 2 + i + j) * 0.05})`;
+          ctx.shadowColor = rgba(brand, 0.25);
           ctx.shadowBlur  = 4;
           ctx.lineWidth   = 1;
           ctx.setLineDash([4, 6]);
@@ -128,7 +134,7 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
           const py = a.y + (b.y - a.y) * pt;
           ctx.beginPath();
           ctx.arc(px, py, 2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0, 180, 216, 0.55)';
+          ctx.fillStyle = rgba(brand, 0.55);
           ctx.fill();
         }
       }
@@ -149,8 +155,8 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
           const glowA = 0.3 + Math.sin(t * 3) * 0.15;
           ctx.beginPath();
           ctx.arc(p.x, p.y, nodeR + 8, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(139, 92, 246, ${glowA})`;
-          ctx.shadowColor = 'rgba(139, 92, 246, 0.5)';
+          ctx.strokeStyle = rgba(brand, glowA);
+          ctx.shadowColor = rgba(brand, 0.5);
           ctx.shadowBlur  = 16;
           ctx.lineWidth   = 2;
           ctx.stroke();
@@ -161,7 +167,7 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
         if (isSelected) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, nodeR + 5, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(0, 180, 216, 0.9)';
+          ctx.strokeStyle = rgba(brand, 0.9);
           ctx.lineWidth   = 2;
           ctx.stroke();
         }
@@ -186,7 +192,7 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
         }
 
         if (isOnline || isSyncing) {
-          ctx.shadowColor = isMaster ? 'rgba(139, 92, 246, 0.35)' : 'rgba(0, 180, 216, 0.2)';
+          ctx.shadowColor = isMaster ? rgba(brand, 0.35) : rgba(brand, 0.2);
           ctx.shadowBlur  = 10;
         }
         ctx.fill();
@@ -196,11 +202,11 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
         ctx.beginPath();
         ctx.arc(p.x, p.y, nodeR, 0, Math.PI * 2);
         if (!isOnline && !isSyncing) {
-          ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+          ctx.strokeStyle = rgba(themeStatus.crit, 0.5);
         } else if (isSyncing) {
           ctx.strokeStyle = `rgba(245, 158, 11, ${0.5 + Math.sin(t * 4) * 0.3})`;
         } else {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.15)';
         }
         ctx.lineWidth = 1.5;
         ctx.stroke();
@@ -210,13 +216,13 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
         const dotY = p.y - nodeR * 0.62;
         ctx.beginPath();
         ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
-        ctx.fillStyle = isOnline ? '#22c55e' : isSyncing ? '#f59e0b' : '#ef4444';
+        ctx.fillStyle = isOnline ? okDot : isSyncing ? themeStatus.warn : themeStatus.crit;
         ctx.fill();
         if (isOnline) {
           const pulse = 4 + Math.sin(t * 4) * 2;
           ctx.beginPath();
           ctx.arc(dotX, dotY, pulse, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(34, 197, 94, ${0.3 + Math.sin(t * 4) * 0.15})`;
+          ctx.strokeStyle = rgba(okDot, 0.3 + Math.sin(t * 4) * 0.15);
           ctx.lineWidth = 1;
           ctx.stroke();
         }
@@ -225,12 +231,12 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
         ctx.font       = `${isMaster ? 14 : 11}px Inter, system-ui, sans-serif`;
         ctx.textAlign  = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle  = isMaster ? 'rgba(255,255,255,0.95)' : 'rgba(180, 210, 255, 0.85)';
+        ctx.fillStyle  = isMaster ? 'rgba(255,255,255,0.95)' : (isDark ? 'rgba(180, 210, 255, 0.85)' : 'rgba(255, 255, 255, 0.9)');
         ctx.fillText(isMaster ? '♛' : '●', p.x, p.y - 2);
 
         /* Label */
         ctx.font      = '11px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(180, 200, 230, 0.8)';
+        ctx.fillStyle = isDark ? 'rgba(180, 200, 230, 0.8)' : 'rgba(60, 60, 95, 0.85)';
         ctx.fillText(node.label, p.x, p.y + nodeR + 14);
 
         /* Mini barres CPU / RAM */
@@ -238,13 +244,13 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
           const bW = 24, bH = 3;
           const bX = p.x - bW / 2;
           const bY = p.y + 8;
-          ctx.fillStyle = 'rgba(255,255,255,0.07)';
+          ctx.fillStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
           ctx.fillRect(bX, bY, bW, bH);
-          ctx.fillStyle = node.cpu > 80 ? '#ef4444' : node.cpu > 60 ? '#f59e0b' : '#22c55e';
+          ctx.fillStyle = node.cpu > 80 ? themeStatus.crit : node.cpu > 60 ? themeStatus.warn : okDot;
           ctx.fillRect(bX, bY, bW * (node.cpu / 100), bH);
-          ctx.fillStyle = 'rgba(255,255,255,0.07)';
+          ctx.fillStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
           ctx.fillRect(bX, bY + 5, bW, bH);
-          ctx.fillStyle = '#8b5cf6';
+          ctx.fillStyle = chart.brand;
           ctx.fillRect(bX, bY + 5, bW * (node.ram / 100), bH);
         }
       }
@@ -256,7 +262,7 @@ export function NetworkCanvas({ nodes, onNodeClick, onNodeHover, selectedNodeId 
 
     animRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animRef.current);
-  }, [size, selectedNodeId]);
+  }, [size, selectedNodeId, isDark]);
 
   /* Handlers souris */
   const handleMouseDown = (e) => {

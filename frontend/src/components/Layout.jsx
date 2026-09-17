@@ -8,6 +8,7 @@ import {
   Users, ShieldCheck, Cpu, RotateCcw, Command, HardDriveDownload,
 } from 'lucide-react';
 import clsx from 'clsx';
+import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { notificationsApi } from '../services/api';
 
@@ -73,7 +74,7 @@ function NavItem({ to, label, icon: Icon, collapsed }) {
             size={15}
             className={clsx(
               'shrink-0 transition-colors duration-150',
-              isActive ? 'text-brand drop-shadow-[0_0_6px_rgba(0,180,216,0.8)]' : 'text-ink-400 group-hover:text-ink-200',
+              isActive ? 'text-brand icon-glow' : 'text-ink-400 group-hover:text-ink-200',
             )}
           />
           <AnimatePresence>
@@ -209,8 +210,8 @@ function TopBar({ onOpenCommand }) {
 
   return (
     <div
-      className="h-14 shrink-0 flex items-center gap-4 px-6 border-b border-ink-700/80"
-      style={{ background: 'rgba(11,11,24,0.85)', backdropFilter: 'blur(12px)' }}
+      className="h-14 shrink-0 flex items-center gap-4 px-6 border-b border-ink-line"
+      style={{ background: 'rgb(var(--c-topbar))', backdropFilter: 'blur(12px)' }}
     >
       <div className="flex-1">
         <h2 className="text-sm font-semibold text-ink-100 tracking-tight">{pageTitle}</h2>
@@ -227,6 +228,9 @@ function TopBar({ onOpenCommand }) {
           <Command size={9} />K
         </kbd>
       </button>
+
+      {/* Bascule thème clair / sombre */}
+      <ThemeToggle />
     </div>
   );
 }
@@ -334,11 +338,11 @@ export default function Layout() {
       <motion.aside
         animate={{ width: collapsed ? 68 : 228 }}
         transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
-        className="h-screen flex flex-col shrink-0 border-r border-ink-700/80 relative z-20"
-        style={{ background: 'linear-gradient(180deg, #0a0a18 0%, #080810 100%)' }}
+        className="h-screen flex flex-col shrink-0 border-r border-ink-line relative z-20"
+        style={{ background: 'linear-gradient(180deg, rgb(var(--c-ink-900)) 0%, rgb(var(--c-ink-950)) 100%)' }}
       >
         {/* Logo */}
-        <div className="h-14 flex items-center px-4 border-b border-ink-700/80 shrink-0">
+        <div className="h-14 flex items-center px-4 border-b border-ink-line shrink-0">
           <div className="flex items-center gap-3 overflow-hidden min-w-0">
             <img
               src="/logo.png" alt="SecureBackup-Chain"
@@ -377,7 +381,7 @@ export default function Layout() {
                   </motion.p>
                 )}
               </AnimatePresence>
-              {collapsed && <div className="h-px bg-ink-700/60 mx-3 mb-2 mt-1" />}
+              {collapsed && <div className="h-px bg-ink-line mx-3 mb-2 mt-1" />}
               {group.items.map((item) => (
                 <NavItem key={item.to} {...item} collapsed={collapsed} />
               ))}
@@ -387,14 +391,14 @@ export default function Layout() {
 
         {/* User footer */}
         {user && (
-          <div className={clsx('px-3 py-3 border-t border-ink-700/80 shrink-0', collapsed && 'px-2')}>
+          <div className={clsx('px-3 py-3 border-t border-ink-line shrink-0', collapsed && 'px-2')}>
             {!collapsed ? (
               <div className="flex items-center gap-2">
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(0,180,216,0.2) 0%, rgba(139,92,246,0.15) 100%)',
-                    border: '1px solid rgba(0,180,216,0.25)',
+                    background: 'linear-gradient(135deg, rgb(var(--c-brand-500) / 0.28) 0%, rgb(var(--c-accent-500) / 0.20) 100%)',
+                    border: '1px solid rgb(var(--c-brand-500) / 0.35)',
                   }}
                 >
                   <span className="text-[11px] font-bold text-brand">{user.email?.[0]?.toUpperCase()}</span>

@@ -26,7 +26,7 @@ export function NodeTooltip({ node, x, y }) {
 
       <div className="text-[11px] text-ink-400 mb-2.5">
         {TYPE_LABELS[node.type] ?? node.type ?? '—'}
-        {node.organization && <span className="ml-1.5 text-ink-500">· {node.organization}</span>}
+        {node.organization && <span className="ml-1.5 text-ink-ghost">· {node.organization}</span>}
       </div>
 
       {(isOnline || isSyncing) ? (

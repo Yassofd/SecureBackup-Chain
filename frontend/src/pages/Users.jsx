@@ -129,7 +129,7 @@ export default function Users() {
               <p className="text-ink-300 text-sm">{error}</p>
             </div>
           ) : (
-            <div className="divide-y divide-ink-700/60">
+            <div className="divide-y divide-ink-line">
               {users.map((u) => {
                 const cfg = ROLE_CFG[u.role] ?? ROLE_CFG.responsable;
                 const RIcon = cfg.icon;
@@ -161,7 +161,7 @@ export default function Users() {
               })}
               {users.length === 0 && (
                 <div className="p-12 text-center">
-                  <User size={24} className="text-ink-500 mx-auto mb-2" />
+                  <User size={24} className="text-ink-ghost mx-auto mb-2" />
                   <p className="text-ink-300 text-sm">Aucun utilisateur trouvé.</p>
                 </div>
               )}

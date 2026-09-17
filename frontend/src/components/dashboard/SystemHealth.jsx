@@ -10,7 +10,7 @@ function HealthRow({ label, status, detail }) {
   const color = ok ? 'text-emerald-400' : warn ? 'text-amber-400' : 'text-red-400';
 
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-ink-700/60 last:border-0">
+    <div className="flex items-center gap-3 py-2.5 border-b border-ink-line last:border-0">
       <Icon size={14} className={clsx(color, 'shrink-0')} />
       <div className="flex-1 min-w-0">
         <p className="text-sm text-ink-100">{label}</p>

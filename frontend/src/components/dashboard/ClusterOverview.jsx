@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Server, Wifi, WifiOff, AlertTriangle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
+import { useTheme } from '../../context/ThemeContext';
+import { rgba } from '../../theme/palette';
 import { networkApi, backupsApi } from '../../services/api';
 
 export default function ClusterOverview() {
+  const { chart }    = useTheme();
   const [health, setHealth]   = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,14 +42,14 @@ export default function ClusterOverview() {
     <div
       className="relative rounded-xl border overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, rgba(0,180,216,0.06) 0%, rgba(139,92,246,0.04) 50%, rgba(11,11,24,0) 100%)',
-        borderColor: 'rgba(0,180,216,0.2)',
-        boxShadow: '0 0 40px rgba(0,180,216,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+        background: `linear-gradient(135deg, ${rgba(chart.brand, 0.08)} 0%, ${rgba(chart.accent, 0.05)} 50%, transparent 100%)`,
+        borderColor: rgba(chart.brand, 0.25),
+        boxShadow: `0 0 40px ${rgba(chart.brand, 0.08)}, inset 0 1px 0 rgb(var(--c-inset-top))`,
       }}
     >
       {/* Ambient glow */}
       <div className="absolute top-0 left-0 w-64 h-16 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at 0% 0%, rgba(0,180,216,0.12) 0%, transparent 70%)' }} />
+        style={{ background: `radial-gradient(ellipse at 0% 0%, ${rgba(chart.brand, 0.14)} 0%, transparent 70%)` }} />
 
       <div className="relative px-6 py-4 flex flex-wrap items-center gap-6">
         {/* Title */}

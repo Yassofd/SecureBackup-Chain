@@ -121,7 +121,7 @@ export default function Dashboard() {
             </div>
           ) : backups.length === 0 ? (
             <div className="p-12 text-center">
-              <HardDrive size={22} className="text-ink-500 mx-auto mb-3" />
+              <HardDrive size={22} className="text-ink-ghost mx-auto mb-3" />
               <p className="text-ink-300 text-sm">Aucune sauvegarde — déposez un fichier →</p>
             </div>
           ) : (

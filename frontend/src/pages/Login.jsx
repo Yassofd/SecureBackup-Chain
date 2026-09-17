@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { authApi } from '../services/api';
+import ThemeToggle from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -36,8 +37,14 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-ink-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-brand/[0.06] rounded-full blur-3xl pointer-events-none" />
+      {/* Ambient glow — rappel du dégradé du logo (violet → magenta) */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-brand/[0.08] rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 right-1/4 w-[400px] h-[300px] bg-accent/[0.05] rounded-full blur-3xl pointer-events-none" />
+
+      {/* Bascule thème clair / sombre */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle variant="solid" />
+      </div>
 
       <div className="w-full max-w-sm relative z-10">
         {/* Logo + title */}

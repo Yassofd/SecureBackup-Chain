@@ -3,6 +3,128 @@
 @tailwind utilities;
 
 @layer base {
+  /* ══════════════════════════════════════════════════════════════════════════
+     JETONS DE COULEUR — deux jeux de variables CSS
+     ──────────────────────────────────────────────────────────────────────────
+     • `:root`    → mode clair
+     • `html.dark` → mode sombre (surcharge, spécificité supérieure)
+
+     L'échelle `ink` est INVERSÉE entre les thèmes :
+        950 = surface la plus profonde      50 = texte le plus fort
+     Ce miroir permet aux compositions existantes (bg-ink-700, text-ink-300,
+     border-ink-500…) de rester valides dans les deux thèmes.
+
+     Le mode sombre reprend EXACTEMENT les valeurs d'origine de l'application :
+     seule la teinte d'accentuation passe du cyan au violet du logo.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Mode clair ─────────────────────────────────────────────────────────── */
+  :root {
+    /* Échelle neutre (teintée violet, dérivée de #6B3EE2) */
+    --c-ink-950: 242 242 249;   /* fond le plus profond (page de connexion)   */
+    --c-ink-900: 245 245 250;   /* fond général (contenu, body)               */
+    --c-ink-850: 247 247 252;
+    --c-ink-800: 240 240 247;   /* en-têtes de panneaux, infobulles, modales  */
+    --c-ink-750: 246 246 251;
+    --c-ink-700: 255 255 255;   /* cartes, panneaux, barre latérale           */
+    --c-ink-650: 241 241 248;
+    --c-ink-600: 233 233 242;   /* champs de saisie, surfaces secondaires     */
+    --c-ink-550: 226 226 237;   /* survol                                     */
+    --c-ink-500: 220 220 234;   /* bordures principales                       */
+    --c-ink-450: 208 208 226;
+    --c-ink-400: 110 110 145;   /* texte le plus discret  (4,9:1 sur blanc)   */
+    --c-ink-300:  95  95 125;   /* texte secondaire       (6,1:1)             */
+    --c-ink-200:  69  69 106;   /* libellés               (9,1:1)             */
+    --c-ink-100:  42  42  74;
+    --c-ink-50:   21  21  46;   /* texte principal       (15,5:1)             */
+    --c-ink-ghost: 148 148 180; /* texte « fantôme », pastilles vides (3,1:1) */
+    --c-ink-line: 228 228 240;  /* séparateurs fins (barres, lignes de tableau) */
+
+    /* Violet du logo — valeur exacte #6B3EE2 */
+    --c-brand-400: 125  85 232;
+    --c-brand-500: 107  62 226;   /* = #6B3EE2 */
+    --c-brand-600:  85  48 184;
+    /* Violet des aplats (boutons pleins) : garantit blanc sur violet ≥ 4,5:1 */
+    --c-brand-solid:        107 62 226;
+    --c-brand-solid-hover:  125 85 232;
+    --c-brand-solid-active:  85 48 184;
+
+    /* Rose-magenta du logo (#D628B4 → variante assombrie pour le texte) */
+    --c-accent-400: 201  59 174;
+    --c-accent-500: 176  31 148;
+    --c-accent-600: 138  24 120;
+
+    /* Couleurs d'état : nuances assombries pour rester lisibles sur blanc */
+    --c-emerald-400:   4 120  87;
+    --c-red-400:     220  38  38;
+    --c-amber-400:   180  83   9;
+    --c-purple-400:  126  34 206;
+    --c-indigo-400:   67  56 202;
+    --c-blue-400:     29  78 216;
+
+    /* Chrome */
+    --c-scroll:      200 200 218;
+    --c-inset-top:     0   0   0 / 0.04;
+    --c-shadow:       24  24  60 / 0.10;
+    --c-shadow-modal: 24  24  60 / 0.18;
+    --c-shadow-pop:   24  24  60 / 0.14;
+    --c-glass-ring:    0   0   0 / 0.05;
+    --c-topbar:      255 255 255 / 0.85;
+  }
+
+  /* ── Mode sombre (valeurs historiques de l'application) ──────────────────── */
+  html.dark {
+    --c-ink-950:   6   6  15;
+    --c-ink-900:  11  11  24;
+    --c-ink-850:  15  15  32;
+    --c-ink-800:  19  19  40;
+    --c-ink-750:  23  23  46;
+    --c-ink-700:  28  28  54;
+    --c-ink-650:  32  32  62;
+    --c-ink-600:  37  37  69;
+    --c-ink-550:  42  42  78;
+    --c-ink-500:  48  48  88;
+    --c-ink-450:  58  58 104;
+    --c-ink-400:  69  69 120;
+    --c-ink-300: 101 101 160;
+    --c-ink-200: 142 142 184;
+    --c-ink-100: 182 182 208;
+    --c-ink-50:  238 238 252;
+    --c-ink-ghost: 48  48  88;  /* = ancien ink-500 (aspect d'origine)        */
+    --c-ink-line:  28  28  54;  /* = ancien ink-700                           */
+
+    /* Violet du logo éclairci : #6B3EE2 brut ne tient pas le contraste
+       sur fond très foncé (3,8:1) — on conserve la teinte, pas la clarté. */
+    --c-brand-400: 183 155 249;
+    --c-brand-500: 155 123 245;
+    --c-brand-600: 124  92 240;
+    /* Aplats : blanc sur #7C5CF0 = 4,5:1 (AA) */
+    --c-brand-solid:        124  92 240;
+    --c-brand-solid-hover:  139  98 240;
+    --c-brand-solid-active: 107  62 226;
+
+    /* Magenta du logo (fidèle à #D628B4) */
+    --c-accent-400: 228  79 198;
+    --c-accent-500: 214  40 180;
+    --c-accent-600: 168  30 142;
+
+    /* Couleurs d'état : nuances Tailwind d'origine (calibrées fond sombre) */
+    --c-emerald-400:  52 211 153;
+    --c-red-400:     248 113 113;
+    --c-amber-400:   251 191  36;
+    --c-purple-400:  192 132 252;
+    --c-indigo-400:  129 140 248;
+    --c-blue-400:     96 165 250;
+
+    --c-scroll:       48  48  88;
+    --c-inset-top:   255 255 255 / 0.05;
+    --c-shadow:        0   0   0 / 0.40;
+    --c-shadow-modal:  0   0   0 / 0.60;
+    --c-shadow-pop:    0   0   0 / 0.50;
+    --c-glass-ring:  255 255 255 / 0.06;
+    --c-topbar:       11  11  24 / 0.85;
+  }
+
   html {
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -10,10 +132,15 @@
   }
   body { @apply bg-ink-900 text-ink-50; }
 
+  /* Bascule de thème : transition courte sur les surfaces principales */
+  body, .panel, .card, .input {
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  }
+
   ::-webkit-scrollbar       { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-ink-500 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-ink-400; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--c-scroll)); @apply rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-scroll) / 0.8); }
 }
 
 @layer components {
@@ -29,27 +156,32 @@
   .panel-header {
     @apply bg-ink-800/80 border-b border-ink-500/50 px-5 py-3.5
            flex items-center justify-between;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: inset 0 1px 0 rgb(var(--c-inset-top));
   }
   .panel-title { @apply text-sm font-semibold text-ink-50 tracking-tight; }
   .panel-body  { @apply p-5; }
 
   /* ── Buttons ─────────────────────────────────────────────────────────────── */
+  /* Le violet des aplats est une variable dédiée : en mode sombre il est plus
+     clair que le violet « texte » pour offrir suffisamment de contraste au
+     libellé blanc (AA 4,5:1 dans les deux thèmes). */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-1.5
-           bg-brand text-white px-4 py-2 rounded-lg
+           text-white px-4 py-2 rounded-lg
            text-sm font-semibold tracking-tight
-           hover:bg-brand-400
-           active:bg-brand-600 active:scale-[0.98]
+           active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed
            transition-all duration-150;
+    background-color: rgb(var(--c-brand-solid));
   }
   .btn-primary:hover:not(:disabled) {
-    box-shadow: 0 0 16px rgba(0,180,216,0.35), 0 0 5px rgba(0,180,216,0.2);
+    background-color: rgb(var(--c-brand-solid-hover));
+    box-shadow: 0 0 16px rgb(var(--c-brand-500) / 0.38), 0 0 5px rgb(var(--c-accent-500) / 0.22);
   }
+  .btn-primary:active:not(:disabled) { background-color: rgb(var(--c-brand-solid-active)); }
   .btn-primary:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0,180,216,0.3);
+    box-shadow: 0 0 0 3px rgb(var(--c-brand-500) / 0.30);
   }
 
   .btn-ghost {
@@ -67,7 +199,7 @@
            disabled:opacity-40 transition-all duration-150;
   }
   .btn-outline:hover:not(:disabled) {
-    box-shadow: 0 0 10px rgba(0,180,216,0.15);
+    box-shadow: 0 0 10px rgb(var(--c-brand-500) / 0.18);
   }
 
   .btn-danger {
@@ -89,7 +221,7 @@
            transition-all duration-150;
   }
   .input:focus {
-    box-shadow: 0 0 0 3px rgba(0,180,216,0.12), 0 0 12px rgba(0,180,216,0.08);
+    box-shadow: 0 0 0 3px rgb(var(--c-brand-500) / 0.13), 0 0 12px rgb(var(--c-brand-500) / 0.09);
   }
   .label {
     @apply block text-xs font-medium text-ink-200 mb-1.5 uppercase tracking-wide;
@@ -100,7 +232,7 @@
   .badge-red    { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10    text-red-400    border border-red-500/25;     }
   .badge-amber  { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10  text-amber-400  border border-amber-500/25;   }
   .badge-blue   { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-brand/10      text-brand      border border-brand/25;        }
-  .badge-purple { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/25; }
+  .badge-purple { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent border border-accent/25; }
 
   /* ── Page layout ─────────────────────────────────────────────────────────── */
   .page-header { @apply mb-7 flex items-start justify-between; }
@@ -154,23 +286,26 @@
 
 @layer utilities {
   .glass-surface {
-    background: rgba(19, 19, 40, 0.82);
+    background: rgb(var(--c-ink-800) / 0.82);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
   }
 
   .shadow-glass {
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 1px 4px rgba(0, 0, 0, 0.45);
+      0 0 0 1px rgb(var(--c-glass-ring)),
+      0 1px 4px rgb(var(--c-shadow-pop));
   }
 
   .shadow-glass-md {
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 4px 24px rgba(0, 0, 0, 0.65),
-      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      0 0 0 1px rgb(var(--c-glass-ring)),
+      0 4px 24px rgb(var(--c-shadow-modal)),
+      inset 0 1px 0 rgb(var(--c-inset-top));
   }
+
+  /* Lueur violette autour d'une icône de navigation active */
+  .icon-glow { filter: drop-shadow(0 0 6px rgb(var(--c-brand-500) / 0.55)); }
 
   .status-pulse {
     animation: statusPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;

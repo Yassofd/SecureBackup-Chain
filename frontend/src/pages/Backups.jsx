@@ -59,7 +59,7 @@ export default function Backups() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <HardDrive size={32} className="text-ink-500 mx-auto mb-3" />
+            <HardDrive size={32} className="text-ink-ghost mx-auto mb-3" />
             <p className="text-ink-300 text-sm">
               {search ? `Aucun fichier pour "${search}"` : 'Aucune sauvegarde pour l\'instant.'}
             </p>

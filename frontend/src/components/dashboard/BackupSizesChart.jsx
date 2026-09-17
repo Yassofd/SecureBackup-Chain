@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { HardDrive } from 'lucide-react';
 import { backupsApi } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
 
 function fmtShort(bytes) {
   if (!bytes) return '0';
@@ -21,6 +22,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function BackupSizesChart() {
+  const { chart } = useTheme();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,12 +57,12 @@ export default function BackupSizesChart() {
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <CartesianGrid stroke="rgba(48,48,88,0.5)" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} tickFormatter={fmtShort} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,180,216,0.06)' }} />
-              <Bar dataKey="size" fill="#00b4d8" radius={[4, 4, 0, 0]} barSize={20}
-                style={{ filter: 'drop-shadow(0 0 6px rgba(0,180,216,0.3))' }} />
+              <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} tickFormatter={fmtShort} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: chart.cursor }} />
+              <Bar dataKey="size" fill={chart.brand} radius={[4, 4, 0, 0]} barSize={20}
+                style={{ filter: `drop-shadow(0 0 6px ${chart.brand}55)` }} />
             </BarChart>
           </ResponsiveContainer>
         )}

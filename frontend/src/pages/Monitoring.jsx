@@ -9,6 +9,7 @@ import {
   AlertTriangle, Bell, X, RefreshCw, Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useTheme } from '../context/ThemeContext';
 import { backupsApi, networkApi } from '../services/api';
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -50,13 +51,14 @@ function ChartTooltip({ active, payload, label, unit = '' }) {
 
 /* ── Live metric gauge ───────────────────────────────────────────────────── */
 function MetricGauge({ label, value, unit, warn, crit, color, icon: Icon }) {
+  const { status } = useTheme();
   const pct = Math.min(100, (value / crit) * 100);
   const severity = value >= crit ? 'crit' : value >= warn ? 'warn' : 'ok';
-  const barColor = severity === 'crit' ? '#ef4444' : severity === 'warn' ? '#f59e0b' : color;
+  const barColor = severity === 'crit' ? status.crit : severity === 'warn' ? status.warn : color;
   const textColor = severity === 'crit' ? 'text-red-400' : severity === 'warn' ? 'text-amber-400' : 'text-ink-100';
 
   return (
-    <div className="flex items-center gap-3 px-5 py-4 border-b border-ink-700/60 last:border-0">
+    <div className="flex items-center gap-3 px-5 py-4 border-b border-ink-line last:border-0">
       <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
         style={{ background: `${barColor}15` }}>
         <Icon size={16} style={{ color: barColor }} />
@@ -74,7 +76,7 @@ function MetricGauge({ label, value, unit, warn, crit, color, icon: Icon }) {
             style={{ width: `${pct}%`, background: barColor, boxShadow: `0 0 8px ${barColor}60` }}
           />
         </div>
-        <div className="flex justify-between mt-1 text-[10px] text-ink-500 font-mono">
+        <div className="flex justify-between mt-1 text-[10px] text-ink-ghost font-mono">
           <span>warn {warn}{unit}</span>
           <span>crit {crit}{unit}</span>
         </div>
@@ -111,12 +113,12 @@ function AlertFeed({ alerts, onAck, onDismiss }) {
         </div>
         <span className="text-xs text-ink-300 font-mono">{alerts.length} total</span>
       </div>
-      <div className="flex-1 overflow-y-auto divide-y divide-ink-700/60">
+      <div className="flex-1 overflow-y-auto divide-y divide-ink-line">
         {alerts.map((a) => {
           const cfg = SEV_CFG[a.sev];
           const Icon = cfg.icon;
           return (
-            <div key={a.id} className={clsx('flex items-start gap-3 px-5 py-3.5 hover:bg-white/[0.02] transition-colors', !a.ack && 'bg-brand/[0.02]')}>
+            <div key={a.id} className={clsx('flex items-start gap-3 px-5 py-3.5 hover:bg-ink-ghost/10 transition-colors', !a.ack && 'bg-brand/[0.02]')}>
               <div className={clsx('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5', cfg.bg, 'border', cfg.border)}>
                 <Icon size={14} className={cfg.color} />
               </div>
@@ -199,6 +201,8 @@ export default function Monitoring() {
     } finally { setLoading(false); }
   }
 
+  const { chart, metric, status } = useTheme();
+
   useEffect(() => { loadHealth(); const iv = setInterval(loadHealth, 30_000); return () => clearInterval(iv); }, []);
 
   return (
@@ -244,10 +248,10 @@ export default function Monitoring() {
             <span className="flex items-center gap-1.5 text-xs text-emerald-400"><span className="dot-live" /> Temps réel</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2">
-            <MetricGauge label="CPU" value={gauges.cpu} unit="%" warn={75} crit={90} color="#00b4d8" icon={Cpu} />
-            <MetricGauge label="Mémoire" value={gauges.ram} unit="%" warn={80} crit={95} color="#8b5cf6" icon={Activity} />
-            <MetricGauge label="I/O disque" value={gauges.disk} unit=" MB/s" warn={400} crit={480} color="#10b981" icon={HardDrive} />
-            <MetricGauge label="Latence réseau" value={gauges.lat} unit=" ms" warn={20} crit={50} color="#f59e0b" icon={Wifi} />
+            <MetricGauge label="CPU" value={gauges.cpu} unit="%" warn={75} crit={90} color={metric.cpu} icon={Cpu} />
+            <MetricGauge label="Mémoire" value={gauges.ram} unit="%" warn={80} crit={95} color={metric.ram} icon={Activity} />
+            <MetricGauge label="I/O disque" value={gauges.disk} unit=" MB/s" warn={400} crit={480} color={metric.disk} icon={HardDrive} />
+            <MetricGauge label="Latence réseau" value={gauges.lat} unit=" ms" warn={20} crit={50} color={metric.lat} icon={Wifi} />
           </div>
         </div>
       </motion.div>
@@ -255,8 +259,8 @@ export default function Monitoring() {
       {/* Live charts grid */}
       <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {[
-          { title: 'CPU Usage', data: cpuData, color: '#00b4d8', unit: '%', warn: 75, crit: 90, gradId: 'grad-cpu' },
-          { title: 'Memory Usage', data: ramData, color: '#8b5cf6', unit: '%', warn: 80, crit: 95, gradId: 'grad-ram' },
+          { title: 'CPU Usage', data: cpuData, color: metric.cpu, unit: '%', warn: 75, crit: 90, gradId: 'grad-cpu' },
+          { title: 'Memory Usage', data: ramData, color: metric.ram, unit: '%', warn: 80, crit: 95, gradId: 'grad-ram' },
         ].map(({ title, data, color, unit, warn, crit, gradId }) => (
           <div key={title} className="panel flex flex-col" style={{ minHeight: 220 }}>
             <div className="panel-header">
@@ -277,12 +281,12 @@ export default function Monitoring() {
                       <stop offset="100%" stopColor={color} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(48,48,88,0.5)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="t" tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} />
+                  <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="t" tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} />
                   <Tooltip content={<ChartTooltip unit={unit} />} cursor={{ stroke: `${color}40`, strokeWidth: 1 }} />
-                  <ReferenceLine y={warn} stroke="#f59e0b" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <ReferenceLine y={crit} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <ReferenceLine y={warn} stroke={status.warn} strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <ReferenceLine y={crit} stroke={status.crit} strokeDasharray="4 4" strokeOpacity={0.5} />
                   <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0, fill: color }} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -294,8 +298,8 @@ export default function Monitoring() {
       {/* Disk I/O + Latency */}
       <motion.div initial="hidden" animate="visible" variants={fadeUp} className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {[
-          { title: 'Disk I/O', data: diskData, color: '#10b981', unit: ' MB/s', warn: 400, crit: 480, gradId: 'grad-disk' },
-          { title: 'Latence réseau', data: latData, color: '#f59e0b', unit: ' ms', warn: 20, crit: 50, gradId: 'grad-lat' },
+          { title: 'Disk I/O', data: diskData, color: metric.disk, unit: ' MB/s', warn: 400, crit: 480, gradId: 'grad-disk' },
+          { title: 'Latence réseau', data: latData, color: metric.lat, unit: ' ms', warn: 20, crit: 50, gradId: 'grad-lat' },
         ].map(({ title, data, color, unit, warn, crit, gradId }) => (
           <div key={title} className="panel flex flex-col" style={{ minHeight: 220 }}>
             <div className="panel-header">
@@ -316,12 +320,12 @@ export default function Monitoring() {
                       <stop offset="100%" stopColor={color} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(48,48,88,0.5)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="t" tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 9, fill: '#6565a0' }} tickLine={false} axisLine={false} />
+                  <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="t" tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 9, fill: chart.tick }} tickLine={false} axisLine={false} />
                   <Tooltip content={<ChartTooltip unit={unit} />} cursor={{ stroke: `${color}40`, strokeWidth: 1 }} />
-                  <ReferenceLine y={warn} stroke="#f59e0b" strokeDasharray="4 4" strokeOpacity={0.5} />
-                  <ReferenceLine y={crit} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <ReferenceLine y={warn} stroke={status.warn} strokeDasharray="4 4" strokeOpacity={0.5} />
+                  <ReferenceLine y={crit} stroke={status.crit} strokeDasharray="4 4" strokeOpacity={0.5} />
                   <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0, fill: color }} />
                 </AreaChart>
               </ResponsiveContainer>

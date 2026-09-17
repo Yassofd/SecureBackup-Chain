@@ -4,17 +4,13 @@ import {
   Terminal, Plus, X, AlertTriangle, Trash2, Loader2, Package, Square,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useTheme } from '../context/ThemeContext';
 import { deploymentApi } from '../services/api';
 
 const BASE  = '/api';
 const token = () => localStorage.getItem('accessToken');
 
 const STATUS_LABEL = { running: 'Actif', deploying: 'Déploiement', error: 'Erreur', stopped: 'Arrêté' };
-
-const NODE_ACCENTS = [
-  '#00b4d8', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
-  '#3b82f6', '#ec4899', '#14b8a6', '#f97316',
-];
 
 const STEP_PCT = {
   crypto: 10, channel: 25, compose: 40,
@@ -117,7 +113,7 @@ function DeployModal({ onClose, onSuccess }) {
                 <p>• peer0.orgN.example.com</p>
                 <p>• ca.orgN.example.com</p>
                 <p>• ipfsN / clusterN</p>
-                <p className="text-ink-500 mt-1">Réseau : securebackup-net (partagé)</p>
+                <p className="text-ink-ghost mt-1">Réseau : securebackup-net (partagé)</p>
               </div>
             </div>
           )}
@@ -158,7 +154,7 @@ function DeployModal({ onClose, onSuccess }) {
                     : 'text-ink-200',
                   )}>{e.text}</div>
                 ))}
-                {status === 'running' && <span className="text-ink-500 animate-pulse">▋</span>}
+                {status === 'running' && <span className="text-ink-ghost animate-pulse">▋</span>}
               </div>
             </div>
           )}
@@ -300,6 +296,7 @@ function NodeCard({ node, accent, onDelete, onStatusChange }) {
 }
 
 export default function Deployment() {
+  const { series }   = useTheme();
   const [nodes,     setNodes]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -344,7 +341,7 @@ export default function Deployment() {
             <NodeCard
               key={node.id || node.orgNum}
               node={node}
-              accent={NODE_ACCENTS[i % NODE_ACCENTS.length]}
+              accent={series[i % series.length]}
               onDelete={loadNodes}
               onStatusChange={updateNodeStatus}
             />

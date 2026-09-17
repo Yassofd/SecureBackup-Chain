@@ -17,7 +17,7 @@ function SectionCard({ title, children }) {
 
 function Row({ label, description, children }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-ink-700/50 last:border-0">
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-ink-line last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-ink-100">{label}</p>
         {description && <p className="text-xs text-ink-400 mt-0.5">{description}</p>}

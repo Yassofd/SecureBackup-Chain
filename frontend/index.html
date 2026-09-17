@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SecureBackup-Chain</title>
+    <script>
+      /* Anti-flash : applique le thème avant le premier rendu React.
+         Même règle que ThemeContext (préférence enregistrée, sinon sombre). */
+      (function () {
+        try {
+          var t = localStorage.getItem('sbc-theme');
+          if (t !== 'light' && t !== 'dark') t = 'dark';
+          if (t === 'dark') document.documentElement.classList.add('dark');
+          document.documentElement.style.colorScheme = t;
+        } catch (e) { /* localStorage indisponible */ }
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
