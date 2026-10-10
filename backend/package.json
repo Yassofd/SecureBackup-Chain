@@ -7,7 +7,11 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "seed:admin": "node scripts/seed-admin.js",
+    "import:admin": "node scripts/import-admin.js",
+    "lab:ransomware": "node scripts/ransomware-lab.js",
+    "test:ransomware": "node scripts/ransomware-live-test.js"
   },
   "keywords": [],
   "author": "",

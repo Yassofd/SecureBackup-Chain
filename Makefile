@@ -5,7 +5,7 @@
 
 .PHONY: help install start stop restart status logs logs-backend logs-fabric \
         backup update shell-backend shell-db reset-password purge init-network \
-        fix-docker-net
+        fix-docker-net fix-stack fix-raft fix-chaincode test-ransomware lab-ransomware
 
 # Couleurs
 BOLD  := $(shell tput bold 2>/dev/null || echo '')
@@ -102,6 +102,105 @@ fix-docker-net: ## Neutraliser les règles iptables-legacy résiduelles (Dev Con
 	@docker exec backup-cc ping -c 1 -W 2 securebackup-db >/dev/null 2>&1 \
 		&& echo "  ✓ Réseau inter-conteneurs opérationnel" \
 		|| echo "  ⚠ Le réseau inter-conteneurs reste bloqué — voir docs/troubleshooting.md"
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  REMISE EN ÉTAT après un arrêt brutal (Ctrl-C) ou un plantage réseau
+# ══════════════════════════════════════════════════════════════════════════════
+
+fix-raft: ## Rétablir le quorum Raft (relancer les orgs 2/3 si absentes)
+	@echo "  → Vérification du cluster Raft (orderers)..."
+	@ORDERS=$$(docker ps --format '{{.Names}}' | grep -c '^orderer\.' || true); \
+	if [ "$$ORDERS" -lt 2 ]; then \
+		echo "  ⚠ Seulement $$ORDERS orderer(s) actif(s) — le quorum Raft est perdu."; \
+		echo "  → Relance des nœuds org additionnels (docker-compose-node*)..."; \
+		for f in network/docker-compose-node*.yaml; do \
+			[ -f "$$f" ] || continue; \
+			ORG=$$(basename "$$f" | grep -oE 'node[0-9]+' | grep -oE '[0-9]+'); \
+			[ "$$ORG" = "1" ] && continue; \
+			echo "    · démarrage nœud $$ORG ($$f)"; \
+			docker compose -f "$$f" up -d 2>&1 | grep -E 'Started|Created|Error' || true; \
+		done; \
+		echo "  → Attente de l'élection du leader Raft (25s)..."; \
+		sleep 25; \
+	else \
+		echo "  ✓ $$ORDERS orderers actifs — quorum Raft présent."; \
+	fi
+	@if docker logs --since 30s orderer.org1.example.com 2>&1 | grep -qiE 'new election'; then \
+		echo "  ⚠ Élections encore en cours — patientez ou lancez 'make fix-chaincode'"; \
+	else \
+		echo "  ✓ Cluster Raft stable (pas de nouvelle élection)."; \
+	fi
+
+fix-chaincode: ## Réaligner le CHAINCODE_ID du conteneur backup-cc sur celui commité
+	@echo "  → Détection du CHAINCODE_ID commité sur le channel..."
+	@CC_ID=$$(grep -E '^CHAINCODE_ID=' network/.env 2>/dev/null | cut -d= -f2); \
+	if [ -z "$$CC_ID" ]; then \
+		CC_ID=$$(docker logs peer0.org1.example.com 2>&1 | grep -oE 'backup-cc_1\.0:[a-f0-9]{64}' | sort -u | tail -1); \
+	fi; \
+	if [ -z "$$CC_ID" ]; then \
+		echo "  ✗ Impossible de déterminer le CHAINCODE_ID commité. Lancez d'abord 'make init-network'."; exit 1; \
+	fi; \
+	echo "  ✓ CHAINCODE_ID cible : $$CC_ID"; \
+	CUR=$$(docker exec backup-cc sh -c 'echo $$CHAINCODE_ID' 2>/dev/null); \
+	if [ "$$CUR" = "$$CC_ID" ]; then \
+		echo "  ✓ backup-cc annonce déjà le bon ID — rien à faire."; \
+	else \
+		echo "  ⚠ backup-cc annonce '$$CUR' ≠ commité. Recréation du conteneur..."; \
+		docker rm -f backup-cc >/dev/null 2>&1; \
+		docker run -d --name backup-cc --network securebackup-net \
+			-e CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999 -e CHAINCODE_ID="$$CC_ID" \
+			-v "$(PWD)/chaincode:/usr/local/src" -w /usr/local/src \
+			node:18-alpine sh start.sh >/dev/null 2>&1 && echo "  ✓ backup-cc recréé avec le bon ID (npm install en cours...)"; \
+		echo "  → Attente du démarrage du chaincode (25s)..."; \
+		sleep 25; \
+	fi
+
+fix-stack: ## 🔧 Remise en état complète après crash (réseau + node_modules + raft + chaincode)
+	@echo ""
+	@echo "  $(BOLD)Remise en état de la stack SecureBackup-Chain$(RESET)"
+	@echo "  ────────────────────────────────────────────────────────"
+	@echo "  ⓘ Les données (DB, wallet, crypto-config, IPFS) sont PRÉSERVÉES."
+	@echo ""
+	@echo "  [1/6] Nettoyage du node_modules corrompu du chaincode..."
+	@rm -rf chaincode/node_modules && echo "        ✓ node_modules supprimé (régénéré au démarrage)"
+	@echo "  [2/6] Arrêt de la stack (sans supprimer les volumes)..."
+	@docker compose down --remove-orphans 2>&1 | grep -E 'Removed|Error' | tail -3 || true
+	@echo "  [3/6] Libération et recréation du réseau 'securebackup-net' corrompu..."
+	@for c in $$(docker ps -a --filter network=securebackup-net --format '{{.Names}}' 2>/dev/null); do \
+		docker stop "$$c" >/dev/null 2>&1; docker rm "$$c" >/dev/null 2>&1; \
+	 done; \
+	docker network rm securebackup-net >/dev/null 2>&1 && echo "        ✓ réseau supprimé" || echo "        ⓘ réseau absent (sera recréé)"
+	@echo "  [4/6] Redémarrage des services de base..."
+	@docker compose up -d 2>&1 | grep -E 'Started|Healthy|Error' | tail -3 || true
+	@echo "  [5/6] Rétablissement du quorum Raft..."
+	@$(MAKE) --no-print-directory fix-raft
+	@echo "  [6/6] Réalignement du chaincode..."
+	@$(MAKE) --no-print-directory fix-chaincode
+	@echo ""
+	@echo "  → Vérification finale de la santé (attente 15s)..."
+	@sleep 15
+	@curl -sf http://localhost:$${HTTP_PORT:-80}/api/health >/dev/null 2>&1 \
+		&& echo "  $(GREEN)✓ Stack opérationnelle — API répond.$(RESET)" \
+		|| echo "  ⚠ L'API ne répond pas encore — lancez 'make status' et 'make logs-backend'."
+	@echo ""
+
+lab-ransomware: ## Démo simulée anti-ransomware (sans infra, juste Node)
+	@cd backend && node scripts/ransomware-lab.js
+
+test-ransomware: ## Test LIVE anti-ransomware contre la vraie stack (génère rapports JSON + PDF)
+	@echo "  → Exécution du test LIVE dans le conteneur backend..."
+	@docker cp backend/scripts/ransomware-live-test.js securebackup-backend:/securebackup/backend/scripts/ransomware-live-test.js 2>/dev/null || \
+		docker exec securebackup-backend sh -c 'mkdir -p /securebackup/backend/scripts' && \
+		docker cp backend/scripts/ransomware-live-test.js securebackup-backend:/securebackup/backend/scripts/ransomware-live-test.js
+	@mkdir -p backend/proofs
+	@docker exec securebackup-backend node scripts/ransomware-live-test.js 2>&1 | \
+		grep -vE 'ServiceEndpoint|waitForReady|NetworkConfig|buildPeer|buildOrderer|grpc/grpc-js|Endorser|injected env|github.com/hyperledger'
+	@docker cp securebackup-backend:/securebackup/backend/proofs/. backend/proofs/ 2>/dev/null || true
+	@echo ""
+	@echo "  $(GREEN)✓ Preuves générées dans backend/proofs/ (rapport JSON + certificat PDF)$(RESET)"
+	@ls -1 backend/proofs/ 2>/dev/null | sed 's/^/     /' || true
+	@echo ""
+
 
 init-network: ## Ré-initialiser le réseau Fabric (si le canal n'existe pas encore)
 	@echo "  → Initialisation du réseau Fabric..."

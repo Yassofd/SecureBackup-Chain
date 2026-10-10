@@ -52,3 +52,7 @@ network/.chaincode-id
 # backend/src/services/node-deployer.js (compose-generator.js).
 # node1.yaml reste versionné (nœud de base, utilisé par init-network.sh).
 network/docker-compose-node[2-9]*.yaml
+
+# Preuves générées par les labs anti-ransomware (rapports JSON + certificats PDF)
+backend/proofs/
+
